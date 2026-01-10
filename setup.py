@@ -10,6 +10,15 @@ setup(
     author_email="nicolas.santos@avalontecnologia.com.br",
     url="https://github.com/nickzsd/SQLManager",
     packages=find_packages(include=["SQLManager", "SQLManager.*"]),
+    include_package_data=True,
+    package_data={
+        "SQLManager": [
+            "_model/*.py",
+            "EDTs/*.py",
+            "enum/*.py",
+            "tables/*.py",
+        ]
+    },
     python_requires=">=3.8",
     install_requires=[
         "pyodbc>=4.0.0",
