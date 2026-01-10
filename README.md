@@ -23,6 +23,7 @@ from SQLManager.controller import EDTController
 - Type Safety: Validações de tipo e formato em runtime
 - Model Generator: Sistema automático de geração de modelos baseado no banco de dados
 
+
 ## Instalação
 
 ### Como Repositório Externo
@@ -34,9 +35,117 @@ pip install git+https://github.com/nickzsd/SQLManager.git
 git+https://github.com/nickzsd/SQLManager.git
 ```
 
-NOTA: O Core será instalado no ambiente virtual (.venv) do seu projeto, não na pasta src/
+NOTA: O SQLManager será instalado no ambiente virtual (.venv) do seu projeto, não na pasta src/
 
-## Configuracao Inicial
+## Passo Obrigatório: Gerar os Modelos
+
+Após instalar, rode o gerador de modelos para criar as pastas e arquivos necessários:
+
+```bash
+python -m SQLManager._model._model_update
+```
+
+Esse comando irá criar (ou atualizar) automaticamente as seguintes pastas e arquivos dentro de src/model/:
+
+- src/model/EDTs/    → EDTs customizados (tipos de dados validados)
+- src/model/enum/    → Enums customizados (tipos enumerados)
+- src/model/tables/  → Classes de tabelas baseadas no banco
+
+> **Importante:**
+> - O Enum `DataType` e o EDT `Recid` são obrigatórios e sempre serão gerados automaticamente.
+> - O gerador sincroniza os campos das tabelas do banco com os arquivos Python.
+> - Não edite manualmente arquivos gerados, exceto para customizações documentadas.
+
+## Exemplos de Arquivos Gerados
+
+### Enum (src/model/enum/ItemType.py)
+```python
+from SQLManager import BaseEnumController
+
+class ItemType(BaseEnumController.Enum):
+    '''
+    Enumeração de tipos de item (número/texto), com label descritivo.
+    '''
+    NoneType    = (0, "Nenhum")    
+    Service     = (1, "Serviço")
+    Product     = (2, "Produto")
+    RawMaterial = (3, "Matéria Prima")
+```
+
+### Enum Obrigatório (src/model/enum/DataType.py)
+```python
+from SQLManager import BaseEnumController
+
+class DataType(BaseEnumController.Enum):
+    '''
+    Enumeração de tipos de dados (texto/texto), com label descritivo.
+    '''
+    Null      = ("NoneType",  "Tipo de dado Nulo")
+    String    = ("str",       "Tipo de dado String")
+    Number    = ("int",       "Tipo de dado Number")
+    Float     = ("float",     "Tipo de dado Float")
+    Boolean   = ("bool",      "Tipo de dado Boolean")
+    Array     = ("list",      "Tipo de dado Lista")
+    Object    = ("dict",      "Tipo de dado Dicionário")
+    Tuple     = ("tuple",     "Tipo de dado Tupla")
+    Set       = ("set",       "Tipo de dado Conjunto")
+    Bytes     = ("bytes",     "Tipo de dado Bytes")
+    Function  = ("function",  "Tipo de dado Função")
+    Class     = ("type",      "Tipo de dado Classe")
+    Undefined = ("undefined", "Tipo de dado Indefinido")
+```
+
+### EDT (src/model/EDTs/ItemId.py)
+```python
+from typing import Any
+from SQLManager import EDTController
+from model.enum import DataType
+
+class ItemId(EDTController):
+    '''
+    Identificação do item.
+    Args:
+        value str: Identificação do item
+    '''
+    def __init__(self, value: Any = ""):
+        super().__init__("any", DataType.String, value, 50)
+        self.value = value
+```
+
+### EDT Obrigatório (src/model/EDTs/Recid.py)
+```python
+from typing import Any
+from SQLManager import EDTController
+from model.enum import DataType
+
+class Recid(EDTController):
+    '''
+    Identificador numérico exclusivo.
+    Args:
+        value number: Identificador a ser validado
+    '''
+    def __init__(self, value: Any = 0):
+        super().__init__("onlyNumbers", DataType.Number, value)
+        self.value = value
+```
+
+### Table (src/model/tables/Products.py)
+```python
+from SQLManager import TableController, EDTController
+from model import EDTPack, EnumPack
+
+class Products(TableController):
+    '''
+    Tabela: Products
+    args:
+        db_controller: Banco de dados ou transação
+    '''
+    def __init__(self, db):
+        super().__init__(db=db, table_name="Products")
+        self.RECID = EDTPack.Recid()
+        self.ITEMNAME = EDTController('any', EnumPack.dataType.String, None, 100)
+        self.ITEMTYPE = EnumPack.ItemType()
+```
 
 ### 1. Configure o Core no seu projeto (OBRIGATORIO)
 

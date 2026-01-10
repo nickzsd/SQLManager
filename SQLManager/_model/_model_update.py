@@ -65,7 +65,7 @@ dotenv.load_dotenv()
 
 utils._clear_init_files_pre_import(ROOT_DIR)
 
-# Configurar CoreConfig antes de usar o Core
+# Configurar CoreConfig antes de usar o SQLManager
 from SQLManager import CoreConfig, database_connection, SystemController
 
 if not CoreConfig.is_configured():
@@ -76,12 +76,13 @@ if not CoreConfig.is_configured():
         db_password=os.getenv('DB_PASSWORD')
     )
 
+
 def ensure_datatype_enum(enum_path):
     """Garante que o Enum DataType exista e esteja correto em src/model/enum/DataType.py."""
     datatype_file = enum_path / "DataType.py"
-    datatype_code = '''from core import BaseEnumController
+    datatype_code = '''from SQLManager import BaseEnumController
 
-    class DataType(BaseEnumController.Enum):
+class DataType(BaseEnumController.Enum):
     '''
     '''
     Enumeração de tipos de dados (texto/texto), com label descritivo.
@@ -103,6 +104,28 @@ def ensure_datatype_enum(enum_path):
 '''
     with open(datatype_file, 'w', encoding='utf-8') as f:
         f.write(datatype_code)
+
+def ensure_recid_edt(edts_path):
+    """Garante que o EDT Recid exista e esteja correto em src/model/EDTs/Recid.py."""
+    recid_file = edts_path / "Recid.py"
+    recid_code = '''from typing import Any
+from SQLManager import EDTController
+from model.enum import DataType
+
+class Recid(EDTController):
+    '''
+    '''
+    Identificador numérico exclusivo.
+    Args:
+        value number: Identificador a ser validado
+    '''
+    '''
+    def __init__(self, value: Any = 0):
+        super().__init__("onlyNumbers", DataType.Number, value)
+        self.value = value
+'''
+    with open(recid_file, 'w', encoding='utf-8') as f:
+        f.write(recid_code)
 
 
 class ModelUpdater:
@@ -177,6 +200,7 @@ class ModelUpdater:
         print("MODEL UPDATE")
         print("="*40)
         
+
         try:
             utils.stepInfo("00", "Limpando arquivos __init__.py")
             self._clear_init_files()
@@ -184,6 +208,10 @@ class ModelUpdater:
             # Garante Enum DataType obrigatório
             utils.stepInfo("00.1", "Garantindo Enum DataType obrigatório em src/model/enum/")
             ensure_datatype_enum(self.enums_path)
+
+            # Garante EDT Recid obrigatório
+            utils.stepInfo("00.2", "Garantindo EDT Recid obrigatório em src/model/EDTs/")
+            ensure_recid_edt(self.edts_path)
 
             utils.stepInfo("01.1", "Escaneando EDTs existentes")
             EDT_Manager._scan_existing_edts(self, _ShowEDTs=True)
@@ -518,7 +546,7 @@ class Table_Manager:
                 custom_methods = custom_match.group(1)
         
         lines = []
-        lines.append("from core import TableController, EDTController")
+        lines.append("from SQLManager import TableController, EDTController")
         lines.append("from model import EDTPack, EnumPack")
         lines.append("")
         lines.append(f"class {table_name}(TableController):")
@@ -549,7 +577,7 @@ class Table_Manager:
         """Gera o código Python para uma classe de tabela"""
         lines = []
                 
-        lines.append("from core import TableController, EDTController")
+        lines.append("from SQLManager import TableController, EDTController")
         lines.append("from model import EDTPack, EnumPack")        
         lines.append("")
                 
