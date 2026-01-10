@@ -125,25 +125,26 @@ class Recid(EDTController):
 
 
 class ModelUpdater:
-        def _generate_model_init(self):
-            """Gera o __init__.py da pasta src/model/ com os imports de pacotes."""
-            model_init_file = self.model_path / "__init__.py"
-            content = (
-                "from . import EDTs   as EDTPack\n"
-                "from . import enum   as EnumPack\n"
-                "from . import tables as TablePack\n\n"
-                "__all__ = [\n"
-                "    \"EDTPack\",\n"
-                "    \"EnumPack\",\n"
-                "    \"TablePack\",\n"
-                "]\n"
-            )
-            with open(model_init_file, 'w', encoding='utf-8') as f:
-                f.write(content)
     """
     Classe principal para atualização automática de modelos (EDTs, Enums e Tables)
     """
-    
+
+    def _generate_model_init(self):
+        """Gera o __init__.py da pasta src/model/ com os imports de pacotes."""
+        model_init_file = self.model_path / "__init__.py"
+        content = (
+            "from . import EDTs   as EDTPack\n"
+            "from . import enum   as EnumPack\n"
+            "from . import tables as TablePack\n\n"
+            "__all__ = [\n"
+            "    \"EDTPack\",\n"
+            "    \"EnumPack\",\n"
+            "    \"TablePack\",\n"
+            "]\n"
+        )
+        with open(model_init_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+
     def __init__(self):
         self.db = database_connection()
         '''SOMENTE LEITURA'''
