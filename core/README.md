@@ -18,10 +18,10 @@ Sistema reutilizável para gerenciamento de conexões de banco de dados, valida�
 
 ```bash
 # Via pip (recomendado)
-pip install git+https://github.com/seu-usuario/core.git
+pip install https://github.com/nickzsd/SQLManager
 
 # Ou adicione ao requirements.txt
-git+https://github.com/seu-usuario/core.git
+git+https://github.com/nickzsd/SQLManager
 ```
 
 NOTA: O Core será instalado no ambiente virtual (.venv) do seu projeto, não na pasta src/
@@ -278,7 +278,7 @@ products.delete()
 MeuProjeto/
 │
 ├── .env                   # Suas variáveis de ambiente
-├── requirements.txt       # git+https://github.com/seu-usuario/core.git
+├── requirements.txt       # git+https://github.com/nickzsd/SQLManager
 ├── app.py                 # Configurar CoreConfig aqui
 │
 ├── src/

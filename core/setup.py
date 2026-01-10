@@ -8,7 +8,7 @@ setup(
     description="Sistema reutilizável para gerenciamento de banco de dados e validações",
     author="Nicolas Santos",
     author_email="nicolas.santos@avalontecnologia.com.br",
-    url="https://github.com/seu-usuario/sqlmanager-core",
+    url="https://github.com/nickzsd/SQLManager",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     python_requires=">=3.8",
