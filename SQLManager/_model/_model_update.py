@@ -227,11 +227,11 @@ class ModelUpdater:
             utils.stepInfo("00.0", "Gerando __init__.py da pasta src/model/")
             self._generate_model_init()
 
-            # Garante Enum DataType obrigatório
+            # Enum DataType obrigatório
             utils.stepInfo("00.1", "Garantindo Enum DataType obrigatório em src/model/enum/")
             ensure_datatype_enum(self.enums_path)
 
-            # Garante EDT Recid obrigatório
+            # EDT Recid obrigatório
             utils.stepInfo("00.2", "Garantindo EDT Recid obrigatório em src/model/EDTs/")
             ensure_recid_edt(self.edts_path)
 
@@ -306,8 +306,7 @@ class EDT_Manager:
     def _update_edts_init(_model: ModelUpdater):
         """Atualiza o __init__.py dos EDTs"""
         init_file = _model.edts_path / "__init__.py"
-        
-        # Gera o conteúdo do __init__.py
+                
         lines = []
         for file_name, class_name in _model.edt_file_to_class.items():
             lines.append(f"from .{file_name} import {class_name}")
@@ -439,8 +438,7 @@ class Table_Manager:
                 
         for table_name in db_tables:
             Table_Manager._update_single_table(_model, table_name)
-        
-        # Cria set com nomes em lowercase para comparação case-insensitive
+                
         db_tables_lower = set(t.lower() for t in db_tables)
         
         for table_name, file_path in _model.available_tables.items():
@@ -503,7 +501,7 @@ class Table_Manager:
         
         table_file = _model.tables_path / f"{table_name}.py"
         
-        # Se arquivo existe, preserva métodos customizados
+        # preserva métodos customizados
         if table_file.exists():
             table_code = Table_Manager._update_existing_table(_model, table_name, columns, table_file)
         else:
@@ -637,10 +635,12 @@ class Table_Manager:
                 
         python_type, datatype = _model.sql_type_mapping.get(sql_type, ('str', 'DataType.String'))
                 
+        datatype_name = datatype.split('.')[-1]
+
         if sql_type in ('varchar', 'nvarchar', 'char', 'nchar') and max_length:
-            return f"EDTController('any', EnumPack.dataType.Enum_cls.{datatype}, None, {max_length})"
-        
-        return f"EDTController('any', EnumPack.dataType.Enum_cls.{datatype})"
+            return f"EDTController('any', EnumPack.DataType.{datatype_name}, None, {max_length})"
+    
+        return f"EDTController('any', EnumPack.DataType.{datatype_name})"
     
 if __name__ == "__main__":
     updater = ModelUpdater().run()    
