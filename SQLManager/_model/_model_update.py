@@ -83,11 +83,9 @@ def ensure_datatype_enum(enum_path):
     datatype_code = '''from SQLManager import BaseEnumController
 
 class DataType(BaseEnumController.Enum):
-    '''
-    '''
+    """
     Enumeração de tipos de dados (texto/texto), com label descritivo.
-    '''
-    '''
+    """
     Null      = ("NoneType",  "Tipo de dado Nulo")
     String    = ("str",       "Tipo de dado String")
     Number    = ("int",       "Tipo de dado Number")
@@ -113,13 +111,11 @@ from SQLManager import EDTController
 from model.enum import DataType
 
 class Recid(EDTController):
-    '''
-    '''
+    """
     Identificador numérico exclusivo.
     Args:
         value number: Identificador a ser validado
-    '''
-    '''
+    """
     def __init__(self, value: Any = 0):
         super().__init__("onlyNumbers", DataType.Number, value)
         self.value = value
@@ -129,6 +125,21 @@ class Recid(EDTController):
 
 
 class ModelUpdater:
+        def _generate_model_init(self):
+            """Gera o __init__.py da pasta src/model/ com os imports de pacotes."""
+            model_init_file = self.model_path / "__init__.py"
+            content = (
+                "from . import EDTs   as EDTPack\n"
+                "from . import enum   as EnumPack\n"
+                "from . import tables as TablePack\n\n"
+                "__all__ = [\n"
+                "    \"EDTPack\",\n"
+                "    \"EnumPack\",\n"
+                "    \"TablePack\",\n"
+                "]\n"
+            )
+            with open(model_init_file, 'w', encoding='utf-8') as f:
+                f.write(content)
     """
     Classe principal para atualização automática de modelos (EDTs, Enums e Tables)
     """
@@ -210,6 +221,10 @@ class ModelUpdater:
         try:
             utils.stepInfo("00", "Limpando arquivos __init__.py")
             self._clear_init_files()
+
+            # Gera o __init__.py da pasta model
+            utils.stepInfo("00.0", "Gerando __init__.py da pasta src/model/")
+            self._generate_model_init()
 
             # Garante Enum DataType obrigatório
             utils.stepInfo("00.1", "Garantindo Enum DataType obrigatório em src/model/enum/")
