@@ -138,8 +138,9 @@ class ModelUpdater:
         '''SOMENTE LEITURA'''
         self.db.connect()
         
-        # Paths
-        self.model_path  = ROOT_DIR / "src" / "model"
+        # Paths - sempre na raiz do projeto do usuário
+        project_root = Path.cwd()
+        self.model_path  = project_root / "src" / "model"
         self.edts_path   = self.model_path  / "EDTs"
         self.enums_path  = self.model_path  / "enum"
         self.tables_path = self.model_path  / "tables"
