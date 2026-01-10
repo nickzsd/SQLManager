@@ -143,6 +143,11 @@ class ModelUpdater:
         self.edts_path   = self.model_path  / "EDTs"
         self.enums_path  = self.model_path  / "enum"
         self.tables_path = self.model_path  / "tables"
+
+        # Garante que as pastas existem
+        self.edts_path.mkdir(parents=True, exist_ok=True)
+        self.enums_path.mkdir(parents=True, exist_ok=True)
+        self.tables_path.mkdir(parents=True, exist_ok=True)
                 
         self.available_edts   = {}
         self.available_enums  = {}
