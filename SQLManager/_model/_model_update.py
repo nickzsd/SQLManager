@@ -51,7 +51,7 @@ class utils:
 
     @staticmethod
     def stepInfo(_step: str, _desc: str):
-        from core import SystemController
+        from SQLManager import SystemController
         print(f"\n[{SystemController().custom_text(_step, 'cyan', is_bold=True)}] {_desc}...")
 
 sys.dont_write_bytecode = True
@@ -66,7 +66,7 @@ dotenv.load_dotenv()
 utils._clear_init_files_pre_import(ROOT_DIR)
 
 # Configurar CoreConfig antes de usar o Core
-from core import CoreConfig, database_connection, SystemController
+from SQLManager import CoreConfig, database_connection, SystemController
 
 if not CoreConfig.is_configured():
     CoreConfig.configure(

@@ -3,13 +3,13 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="sqlmanager-core",
+    name="SQLManager",
     version="1.0.0",
     description="Sistema reutilizável para gerenciamento de banco de dados e validações",
     author="Nicolas Santos",
     author_email="nicolas.santos@avalontecnologia.com.br",
     url="https://github.com/nickzsd/SQLManager",
-    packages=find_packages(),
+    packages=find_packages(include=["SQLManager", "SQLManager.*"]),
     python_requires=">=3.8",
     install_requires=[
         "pyodbc>=4.0.0",

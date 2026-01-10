@@ -1,6 +1,17 @@
-﻿# Core - Sistema de Gerenciamento de Banco de Dados
+﻿# SQLManager - Sistema de Gerenciamento de Banco de Dados
 
 Sistema reutilizável para gerenciamento de conexões de banco de dados, validações de dados (EDTs e BaseEnums) e controle de tabelas.
+
+## Importação do Pacote
+
+Após instalar, use:
+
+```python
+from SQLManager import connection, controller, CoreConfig
+# ou
+from SQLManager.connection import database_connection
+from SQLManager.controller import EDTController
+```
 
 ## Características
 
@@ -17,11 +28,10 @@ Sistema reutilizável para gerenciamento de conexões de banco de dados, valida�
 ### Como Repositório Externo
 
 ```bash
-# Via pip (recomendado)
-pip install https://github.com/nickzsd/SQLManager
+pip install git+https://github.com/nickzsd/SQLManager.git
 
 # Ou adicione ao requirements.txt
-git+https://github.com/nickzsd/SQLManager
+git+https://github.com/nickzsd/SQLManager.git
 ```
 
 NOTA: O Core será instalado no ambiente virtual (.venv) do seu projeto, não na pasta src/
@@ -34,7 +44,7 @@ NOTA: O Core será instalado no ambiente virtual (.venv) do seu projeto, não na
 # app.py (na raiz do seu projeto)
 import os
 import dotenv
-from core import CoreConfig
+from SQLManager import CoreConfig
 
 # Carrega .env do SEU projeto
 dotenv.load_dotenv()
@@ -51,7 +61,7 @@ CoreConfig.configure(
 ### 2. Registre Regex Customizados (Opcional)
 
 ```python
-# Registrar validacoes especificas do seu projeto
+# Registrar validações específicas do seu projeto
 CoreConfig.register_multiple_regex({
     'CompanyEmail': r'^[\w\.-]+@minhaempresa\.com\.br$',
     'ProductCode': r'^PRD-\d{6}$',
@@ -72,11 +82,11 @@ O Core INCLUI um gerador automatico de modelos (_model_update.py) que:
 **Como usar o _model_update.py:**
 
 ```bash
-# Apos instalar o Core, execute o gerador:
-python -m core._model._model_update
+# Após instalar o Core, execute o gerador:
+python -m SQLManager._model._model_update
 
 # Ou se preferir:
-python .venv/Lib/site-packages/core/_model/_model_update.py
+python .venv/Lib/site-packages/SQLManager/_model/_model_update.py
 ```
 
 **Requisitos obrigatorios:**
@@ -122,7 +132,8 @@ CoreConfig.register_multiple_regex({
 ### Conexão com Banco de Dados
 
 ```python
-from core import database_connection
+
+from SQLManager.connection import database_connection
 
 # Conectar (usa configuração do CoreConfig)
 db = database_connection()
@@ -179,7 +190,8 @@ except:
 ### EDTs (Extended Data Types)
 
 ```python
-from core import EDTController
+
+from SQLManager.controller import EDTController
 from model import EnumPack
 
 # EDT com regex built-in
@@ -230,7 +242,8 @@ except ValueError as e:
 ### Criando EDTs Personalizados
 
 ```python
-from core import EDTController
+
+from SQLManager.controller import EDTController
 
 class CompanyEmail(EDTController):
     def __init__(self):
@@ -343,11 +356,13 @@ print(config)
 
 ```python
 #  BOM: No main/app.py
-from core import CoreConfig
+
+from SQLManager import CoreConfig
 CoreConfig.configure(load_from_env=True)
 
 # Depois em qualquer lugar
-from core import database_connection
+
+from SQLManager.connection import database_connection
 db = database_connection()  # Usa configuração do CoreConfig
 ```
 
@@ -386,7 +401,8 @@ db.executeCommand("INSERT INTO Users (Email) VALUES (?)", (user_input,))
 
 ```python
 # Solução: Configure antes de usar
-from core import CoreConfig
+
+from SQLManager import CoreConfig
 CoreConfig.configure(load_from_env=True)
 ```
 
@@ -394,6 +410,7 @@ CoreConfig.configure(load_from_env=True)
 
 ```python
 # Solução: Registre o regex customizado
+
 CoreConfig.register_regex('MeuRegex', r'^PATTERN$')
 ```
 
@@ -405,6 +422,7 @@ config = CoreConfig.get_db_config()
 print(config)  # Verificar se valores estão corretos
 
 # Teste conexão manual
+
 db = database_connection(
     _Server='localhost',
     _Database='TestDB',
