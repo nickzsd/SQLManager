@@ -76,6 +76,35 @@ if not CoreConfig.is_configured():
         db_password=os.getenv('DB_PASSWORD')
     )
 
+def ensure_datatype_enum(enum_path):
+    """Garante que o Enum DataType exista e esteja correto em src/model/enum/DataType.py."""
+    datatype_file = enum_path / "DataType.py"
+    datatype_code = '''from core import BaseEnumController
+
+    class DataType(BaseEnumController.Enum):
+    '''
+    '''
+    Enumeração de tipos de dados (texto/texto), com label descritivo.
+    '''
+    '''
+    Null      = ("NoneType",  "Tipo de dado Nulo")
+    String    = ("str",       "Tipo de dado String")
+    Number    = ("int",       "Tipo de dado Number")
+    Float     = ("float",     "Tipo de dado Float")
+    Boolean   = ("bool",      "Tipo de dado Boolean")
+    Array     = ("list",      "Tipo de dado Lista")
+    Object    = ("dict",      "Tipo de dado Dicionário")
+    Tuple     = ("tuple",     "Tipo de dado Tupla")
+    Set       = ("set",       "Tipo de dado Conjunto")
+    Bytes     = ("bytes",     "Tipo de dado Bytes")
+    Function  = ("function",  "Tipo de dado Função")
+    Class     = ("type",      "Tipo de dado Classe")
+    Undefined = ("undefined", "Tipo de dado Indefinido")
+'''
+    with open(datatype_file, 'w', encoding='utf-8') as f:
+        f.write(datatype_code)
+
+
 class ModelUpdater:
     """
     Classe principal para atualização automática de modelos (EDTs, Enums e Tables)
@@ -151,20 +180,24 @@ class ModelUpdater:
         try:
             utils.stepInfo("00", "Limpando arquivos __init__.py")
             self._clear_init_files()
-            
-            utils.stepInfo("01.1", "Escaneando EDTs existentes")
-            EDT_Manager._scan_existing_edts(self, _ShowEDTs=True)    
 
-            utils.stepInfo("01.2", "Atualizando Model de EDTs")        
+            # Garante Enum DataType obrigatório
+            utils.stepInfo("00.1", "Garantindo Enum DataType obrigatório em src/model/enum/")
+            ensure_datatype_enum(self.enums_path)
+
+            utils.stepInfo("01.1", "Escaneando EDTs existentes")
+            EDT_Manager._scan_existing_edts(self, _ShowEDTs=True)
+
+            utils.stepInfo("01.2", "Atualizando Model de EDTs")
             EDT_Manager._update_edts_init(self)
 
             utils.stepInfo("02.1", "Escaneando Enums existentes")
-            Enum_Manager._scan_existing_enums(self, _ShowEnums=True)                        
+            Enum_Manager._scan_existing_enums(self, _ShowEnums=True)
 
-            utils.stepInfo("02.2", "Atualizando Model de Enums")  
+            utils.stepInfo("02.2", "Atualizando Model de Enums")
             Enum_Manager._update_enums_init(self)
 
-            utils.stepInfo("03.1", "Escaneando Tables existentes")            
+            utils.stepInfo("03.1", "Escaneando Tables existentes")
             Table_Manager._scan_existing_tables(self, _ShowTables=True)
 
             utils.stepInfo("03.2", "Atualizando Tables")
@@ -172,15 +205,15 @@ class ModelUpdater:
 
             utils.stepInfo("03.3", "Atualizando model de Tables")
             Table_Manager._scan_existing_tables(self, _ShowTables=True)
-            Table_Manager._update_tables_init(self)          
-            
+            Table_Manager._update_tables_init(self)
+
             print("\n" + "="*40)
             print("ATUALIZAÇÃO CONCLUÍDA COM SUCESSO!")
             print("="*40)
-            
+
         except Exception as e:
             print(f"\n[ERRO] Falha na atualização: {str(e)}")
-            raise                                                       
+            raise
 
 class EDT_Manager:
     """
