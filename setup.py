@@ -9,8 +9,7 @@ setup(
     author="Nicolas Santos",
     author_email="nicolas.santos@avalontecnologia.com.br",
     url="https://github.com/nickzsd/SQLManager",
-    packages=find_packages(where="src"),
-    package_dir={"": "src"},
+    packages=find_packages(),
     python_requires=">=3.8",
     install_requires=[
         "pyodbc>=4.0.0",
