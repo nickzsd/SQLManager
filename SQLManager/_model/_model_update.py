@@ -440,11 +440,23 @@ class Table_Manager:
             Table_Manager._update_single_table(_model, table_name)
                 
         db_tables_lower = set(t.lower() for t in db_tables)
+                
+        tables_to_remove = [
+            (table_name, file_path)
+            for table_name, file_path in _model.available_tables.items()
+            if table_name.lower() not in db_tables_lower and not table_name.endswith("_Extends")
+        ]
+
+        for table_name, file_path in tables_to_remove:
+            print(f"\n[NOTIFICAÇÃO] Tabela '{table_name}' removida da aplicação pois não existe no banco de dados!")
+            file_path.unlink()
+            if table_name in _model.available_tables:
+                del _model.available_tables[table_name]
+            file_stem = file_path.stem
+            if file_stem in _model.table_file_to_class:
+                del _model.table_file_to_class[file_stem]
         
-        for table_name, file_path in _model.available_tables.items():
-            if table_name.lower() not in db_tables_lower and not table_name.endswith("_Extends"):
-                print(f"- Tabela {SystemController().custom_text(table_name, 'red', is_bold=True)}: removida (não existe no banco)")
-                file_path.unlink() 
+        Table_Manager._scan_existing_tables(_model, _ShowTables=True)
 
     def _update_tables_init(_model: ModelUpdater):
         """Atualiza o __init__.py de tables"""
