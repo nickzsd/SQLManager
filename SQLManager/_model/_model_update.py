@@ -444,7 +444,7 @@ class Table_Manager:
         tables_to_remove = [
             (table_name, file_path)
             for table_name, file_path in _model.available_tables.items()
-            if table_name.lower() not in db_tables_lower and not table_name.endswith("_Extends")
+            if table_name.lower() not in db_tables_lower
         ]
 
         for table_name, file_path in tables_to_remove:
