@@ -217,7 +217,17 @@ class ModelUpdater:
         print("="*40)
         print("MODEL UPDATE")
         print("="*40)
-        
+
+        # ALERTA DE SEGURANÇA
+        print("\nATENÇÃO! Esta execução pode APAGAR arquivos de tabelas da aplicação que não existem mais no banco de dados.")
+        print("Funções customizadas presentes nesses arquivos podem ser PERDIDAS.")
+        print("Recomenda-se realizar BACKUP dos arquivos da pasta src/model/tables antes de prosseguir.")
+        print("Demais necessidades deste processo será a atualização automática dos arquivos __init__.py da model por completo.")
+        print("\nDeseja continuar? (y/n)")
+        resposta = input().strip().lower()
+        if resposta != "y":
+            print("Execução cancelada pelo usuário.")
+            return
 
         try:
             utils.stepInfo("00", "Limpando arquivos __init__.py")
