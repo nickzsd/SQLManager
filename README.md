@@ -2,17 +2,6 @@
 
 Sistema reutilizável para gerenciamento de conexões de banco de dados, validações de dados (EDTs e BaseEnums) e controle de tabelas.
 
-## Importação do Pacote
-
-Após instalar, use:
-
-```python
-from SQLManager import connection, controller, CoreConfig
-# ou
-from SQLManager.connection import database_connection
-from SQLManager.controller import EDTController
-```
-
 ## Características
 
 - Pool de Conexões: Gerenciamento eficiente de conexões com banco de dados
@@ -23,6 +12,7 @@ from SQLManager.controller import EDTController
 - Type Safety: Validações de tipo e formato em runtime
 - Model Generator: Sistema automático de geração de modelos baseado no banco de dados
 
+---
 
 ## Instalação
 
@@ -55,6 +45,41 @@ Esse comando irá criar (ou atualizar) automaticamente as seguintes pastas e arq
 > - O Enum `DataType` e o EDT `Recid` são obrigatórios e sempre serão gerados automaticamente.
 > - O gerador sincroniza os campos das tabelas do banco com os arquivos Python.
 > - Não edite manualmente arquivos gerados, exceto para customizações documentadas.
+
+## Importação do Pacote
+
+Após instalar, use:
+
+```python
+from SQLManager import connection, controller, CoreConfig
+# ou
+from SQLManager.connection import database_connection
+from SQLManager.controller import EDTController
+```
+
+## Atualizando o SQLManager
+
+Para atualizar para a versão mais recente, execute:
+
+```bash
+pip install --upgrade --force-reinstall git+https://github.com/nickzsd/SQLManager.git
+```
+
+## Controllers
+
+Para documentação detalhada das controllers, métodos e exemplos, consulte:
+
+- [SQLManager/controller/Instructions.md](SQLManager/controller/Instructions.md)
+
+---
+
+## Controllers
+
+Para documentação detalhada da classe connection, métodos e exemplos, consulte:
+
+- [SQLManager/controller/Instructions.md](SQLManager/connection/Instructions.md)
+
+---
 
 ## Exemplos de Arquivos Gerados
 

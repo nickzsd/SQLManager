@@ -1,15 +1,28 @@
----
+
 ## Transaction
 
 Transação isolada com conexão própria.
 
-Uma transação totalmente isolada, semelhante a um "copia e cola" da database_connection, mas com conexão própria.
+### Exemplo visual: Passo a passo
 
-### Exemplo de uso:
-	with database.transaction() as trs:
-		# Use a transação isolada
-		ProductsTable = source.TablePack.ProductsTable(trs)
-		# No final, commit ou abort é automático
+```python
+# 1. Iniciar transação
+with database.transaction() as trs:
+	# 2. Instanciar tabela usando a transação
+	products = source.TablePack.ProductsTable(trs)
+	# 3. Inserir registro
+	products.NAME = "Produto X"
+	products.PRICE = 10.0
+	products.insert()
+	# 4. Buscar registro
+	products.select(where=[{"field": "NAME", "operator": "=", "value": "Produto X"}])
+	for prod in products.execute():
+		print(prod.NAME, prod.PRICE)
+	# 5. Commit ou abort é automático ao sair do bloco
+```
+
+### Recomendações
+...existing code...
 
 ### Recomendações:
 	- Instancie tabelas usando a transaction, não a database_connection.
@@ -19,21 +32,39 @@ Uma transação totalmente isolada, semelhante a um "copia e cola" da database_c
 ### Importante:
 	O commit ou abort é feito automaticamente ao final do bloco 'with'.
 
----
+
 ## database_connection
 
 Classe de controle de banco com pool de conexões e transações.
 
-Foi realizado o processo de modificação para que seja possível usar transações isoladas (KNEX como foi demonstrado).
+### Exemplo visual: Passo a passo
 
-Porém, todo seu código legado continua funcionando normalmente. Então para necessidades mais "únicas" como UMA tabela que não vai usar níveis de tts pode usar database, SENÃO usar a transaction.
+```python
+# 1. Conectar ao banco
+database = database_connection()
+database.connect()
 
-### Modelo de uso:
-	database = database_connection()
-	database.connect()
-	table = source.TablePack.ProductsTable(database)
-	table.insert()
-	database.disconnect()
+# 2. Instanciar tabela
+products = source.TablePack.ProductsTable(database)
+
+# 3. Inserir registro
+products.NAME = "Produto Y"
+products.PRICE = 20.0
+products.insert()
+
+# 4. Buscar registro
+products.select(where=[{"field": "NAME", "operator": "=", "value": "Produto Y"}])
+for prod in products.execute():
+	print(prod.NAME, prod.PRICE)
+
+# 5. Desconectar
+database.disconnect()
+```
+
+> Para operações isoladas, utilize a classe `transaction` conforme exemplo acima.
+
+### Recomendações
+...existing code...
 
 OBS: se for isolado consulte a classe transaction.
 Transação isolada, cada uma com sua própria conexão.
@@ -52,3 +83,61 @@ Recomendo:
 
 Importante:
 	No final do bloco 'with', o commit ou abort acontece sozinho. Menos dor de cabeça pra você.
+
+# SQLManager - Connection Instructions
+
+Este documento explica como utilizar as classes de conexão e transação do SQLManager, com exemplos práticos e recomendações.
+
+---
+
+## Transaction
+
+Transação isolada com conexão própria, ideal para operações seguras e independentes.
+
+### Exemplo de uso:
+
+```python
+with database.transaction() as trs:
+    ProductsTable = source.TablePack.ProductsTable(trs)
+    # Operações dentro da transação
+    ProductsTable.insert()
+    # Commit ou abort é automático ao sair do bloco
+```
+
+### Recomendações
+- Instancie tabelas usando a transaction, não a database_connection.
+- Pode usar `begin`, `commit`, `abort` normalmente ou deixar o `with` cuidar disso.
+- Se usar `ttsbegin` da TableController, o nível de tts é apenas para a consulta da tabela, não para a transação inteira.
+
+### Importante
+O commit ou abort é feito automaticamente ao final do bloco `with`.
+
+---
+
+## database_connection
+
+Classe principal para controle de banco, com pool de conexões e suporte a transações.
+
+### Exemplo de uso:
+
+```python
+database = database_connection()
+database.connect()
+table = source.TablePack.ProductsTable(database)
+table.insert()
+database.disconnect()
+```
+
+> Para operações isoladas, utilize a classe `transaction` conforme exemplo acima.
+
+### Recomendações
+- Use `database_connection` para operações simples ou legadas.
+- Prefira `transaction` para operações que exigem isolamento ou segurança.
+
+---
+
+## Documentação das Controllers
+
+Para detalhes completos sobre as controllers, métodos e exemplos, consulte:
+
+- [SQLManager/controller/Instructions.md](../controller/Instructions.md)
