@@ -65,7 +65,7 @@ Para atualizar para a versão mais recente, execute:
 pip install --upgrade --force-reinstall git+https://github.com/nickzsd/SQLManager.git
 ```
 
-## Controllers
+## Controllers - Controladoras
 
 Para documentação detalhada das controllers, métodos e exemplos, consulte:
 
@@ -73,7 +73,7 @@ Para documentação detalhada das controllers, métodos e exemplos, consulte:
 
 ---
 
-## Controllers
+## Connection - Conexões
 
 Para documentação detalhada da classe connection, métodos e exemplos, consulte:
 
