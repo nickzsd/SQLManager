@@ -21,9 +21,6 @@ with database.transaction() as trs:
 	# 5. Commit ou abort é automático ao sair do bloco
 ```
 
-### Recomendações
-...existing code...
-
 ### Recomendações:
 	- Instancie tabelas usando a transaction, não a database_connection.
 	- Você pode usar begin, commit, abort normalmente dentro da transação, ou deixar o 'with' cuidar disso automaticamente.
@@ -63,8 +60,6 @@ database.disconnect()
 
 > Para operações isoladas, utilize a classe `transaction` conforme exemplo acima.
 
-### Recomendações
-...existing code...
 
 OBS: se for isolado consulte a classe transaction.
 Transação isolada, cada uma com sua própria conexão.
