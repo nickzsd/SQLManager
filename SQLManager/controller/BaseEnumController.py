@@ -67,8 +67,11 @@ class CustomEnumMeta(_EnumMeta):
             controller._value = None            
             if isinstance(value, cls):
                 controller._value = value
-            elif isinstance(value, str) and hasattr(cls, value):
-                controller._value = getattr(cls, value)
+            elif isinstance(value, str):
+                if hasattr(cls, value):
+                    controller._value = getattr(cls, value)
+                else:
+                    raise ValueError(f'Valor "{value}" inválido para {cls.__name__}')
             else:            
                 for member in cls:
                     if member.value == value:
