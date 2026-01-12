@@ -4,18 +4,16 @@ from .SystemController  import SystemController
 from ..CoreConfig       import CoreConfig
 from .operator import OperationManager
 
-_instance: TypeAlias = Union['EDTController', 'REGEX']
-
 class EDT_Utils:
     '''Classe utilitária para EDTs'''
-    def do_test(self: _instance, regex_id: str, value: Any) -> bool:
+    def do_test(self, regex_id: str, value: Any) -> bool:
         '''Valida um valor contra um regex_id'''
         if(isinstance(self, EDTController)):
             return self.regex.do_test(regex_id, value)
         elif (isinstance(self, REGEX)):
             return REGEX(regex_id).is_valid(value)
         
-    def is_valid(self: _instance, value: Any) -> bool:
+    def is_valid(self, value: Any) -> bool:
         '''Verifica se o valor é válido para a instância'''
         if(isinstance(self, EDTController)):
             try:
