@@ -119,13 +119,28 @@ class BaseEnumController(BaseEnum_Utils, OperationManager):
     def __repr__(self):
         return f"{self.__class__.__name__}({self.value})"
     
-    def __getattr__(self, name):
-        '''Permite acessar membros do Enum diretamente através do controller'''
-        if hasattr(self.enum_cls, name):
-            member = getattr(self.enum_cls, name)
-            if isinstance(member, _Enum):                
-                return self.enum_cls(member)
+    def __getattribute__(self, name):
+        '''Intercepta todos os acessos a atributos'''
+        # Permitir acesso a atributos internos e métodos especiais
+        if name.startswith('_') or name in ('enum_cls', 'value', 'label', 'key', 'set_value', 
+                                              'get_keys', 'get_values', 'get_labels', 'get_map',
+                                              '__class__', '__dict__'):
+            return object.__getattribute__(self, name)
+        
+        # Tentar pegar do objeto primeiro
+        try:
+            return object.__getattribute__(self, name)
+        except AttributeError:
+            pass
+        
+        enum_cls = object.__getattribute__(self, 'enum_cls')
+        if hasattr(enum_cls, name):
+            member = getattr(enum_cls, name)
+            if isinstance(member, _Enum):
+                # Retorna um novo controller com o valor do membro
+                return enum_cls(member)
             return member
+        
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
     
     def __dir__(self):
