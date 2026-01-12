@@ -98,18 +98,12 @@ class BaseEnumController(BaseEnum_Utils, OperationManager):
     
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if hasattr(cls, '_enum_cls') and cls._enum_cls is not None:
-            for member in cls._enum_cls:
-                setattr(cls, member.name, member)
     
     def __init__(self, enum_cls=None, value=None):
         if enum_cls is None:
             enum_cls = self.__class__._enum_cls
         self.enum_cls = enum_cls
         self._value = None
-                
-        for member in enum_cls:
-            setattr(self, member.name, member)
 
         if value is None:
             self._value = list(enum_cls)[0]
