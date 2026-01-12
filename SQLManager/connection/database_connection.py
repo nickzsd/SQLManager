@@ -13,14 +13,14 @@ class _TTS_Manager:
     Gerenciador de níveis de transação (TTS)
     '''
     
-    @staticmethod
+    @classmethod
     def ttsbegin(self: _Connection):
         '''Adiciona um nível de transação'''
         if self.tts_level == 0:
             self.connection.autocommit = False
         self.tts_level += 1
 
-    @staticmethod
+    @classmethod
     def ttscommit(self: _Connection):
         '''Remove um nível de transação, e faz commit se for o último'''
         if self.tts_level > 0:
@@ -29,7 +29,7 @@ class _TTS_Manager:
                 self.connection.commit()
                 self.connection.autocommit = True
 
-    @staticmethod
+    @classmethod
     def ttsabort(self: _Connection):
         '''Aborta a transação, desfazendo todas as operações'''
         if self.tts_level > 0:
@@ -42,7 +42,7 @@ class _Consult_Manager:
     Gerenciador de consultas (queries) e comandos (execute)
     '''
     
-    @staticmethod
+    @classmethod
     def doQuery(self: _Connection, query: str, params: tuple = ()):
         '''Realiza uma query na conexão'''
         cursor = self.connection.cursor()
@@ -51,7 +51,7 @@ class _Consult_Manager:
         cursor.close()
         return results
     
-    @staticmethod
+    @classmethod
     def executeCommand(self: _Connection, command: str, params: tuple = ()):
         '''Executa um comando na conexão'''
         cursor = self.connection.cursor()
