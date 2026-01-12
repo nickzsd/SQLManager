@@ -58,7 +58,7 @@ if not CoreConfig.is_configured():
 def ensure_datatype_enum(enum_path):
     '''Garante que Enum DataType exista'''
     datatype_file = enum_path / "DataType.py"
-    datatype_code = '''from Typing import self
+    datatype_code = '''from typing import self
 from SQLManager import BaseEnumController
 
 class DataType(BaseEnumController.Enum):
