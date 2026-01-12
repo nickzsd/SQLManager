@@ -32,7 +32,11 @@ class REGEX (EDT_Utils):
 
     def __init__(self, regex_id: str):
         self.regexId      = regex_id
-        self._regex_modes = self._set_type(regex_id)        
+        self._regex_modes = self._set_type(regex_id)
+    
+    def do_test(self, regex_id: str, value: Any) -> bool:
+        '''Testa um valor contra um regex_id específico'''
+        return REGEX(regex_id).is_valid(value)
 
     def _set_type(self, regex_id: str) -> Optional[re.Pattern]:
         """
