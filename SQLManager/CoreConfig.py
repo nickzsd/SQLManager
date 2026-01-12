@@ -1,11 +1,11 @@
 r"""
-CoreConfig - Sistema de Configuração para o Core
+CoreConfig - Sistema de Configuração para o SQLManager
 
-Este módulo permite que projetos externos configurem o Core
+Este módulo permite que projetos externos configurem o SQLManager
 sem modificar seus arquivos internos.
 
 Uso no projeto host:
-    from core import CoreConfig
+    from SQLManager import CoreConfig
     
     CoreConfig.configure(
         db_server='localhost',
@@ -44,7 +44,7 @@ class CoreConfig:
                   db_driver: Optional[str] = None,
                   load_from_env: bool = True):
         """
-        Configura o Core com as credenciais do projeto host
+        Configura o SQLManager com as credenciais do projeto host
         
         Args:
             db_server: Servidor do banco de dados

@@ -600,7 +600,7 @@ DB_PASSWORD=senha123
 ### Configuração Programática
 
 ```python
-from core import CoreConfig
+from SQLManager import CoreConfig
 
 # Via dicionário
 config = {
