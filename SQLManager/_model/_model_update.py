@@ -58,25 +58,26 @@ if not CoreConfig.is_configured():
 def ensure_datatype_enum(enum_path):
     '''Garante que Enum DataType exista'''
     datatype_file = enum_path / "DataType.py"
-    datatype_code = '''from SQLManager import BaseEnumController
+    datatype_code = '''from Typing import self
+from SQLManager import BaseEnumController
 
 class DataType(BaseEnumController.Enum):
     """
     Enumeração de tipos de dados (texto/texto), com label descritivo.
     """
-    Null      = ("NoneType",  "Tipo de dado Nulo")
-    String    = ("str",       "Tipo de dado String")
-    Number    = ("int",       "Tipo de dado Number")
-    Float     = ("float",     "Tipo de dado Float")
-    Boolean   = ("bool",      "Tipo de dado Boolean")
-    Array     = ("list",      "Tipo de dado Lista")
-    Object    = ("dict",      "Tipo de dado Dicionário")
-    Tuple     = ("tuple",     "Tipo de dado Tupla")
-    Set       = ("set",       "Tipo de dado Conjunto")
-    Bytes     = ("bytes",     "Tipo de dado Bytes")
-    Function  = ("function",  "Tipo de dado Função")
-    Class     = ("type",      "Tipo de dado Classe")
-    Undefined = ("undefined", "Tipo de dado Indefinido")
+    Null     : self = ("NoneType",  "Tipo de dado Nulo")
+    String   : self = ("str",       "Tipo de dado String")
+    Number   : self = ("int",       "Tipo de dado Number")
+    Float    : self = ("float",     "Tipo de dado Float")
+    Boolean  : self = ("bool",      "Tipo de dado Boolean")
+    Array    : self = ("list",      "Tipo de dado Lista")
+    Object   : self = ("dict",      "Tipo de dado Dicionário")
+    Tuple    : self = ("tuple",     "Tipo de dado Tupla")
+    Set      : self = ("set",       "Tipo de dado Conjunto")
+    Bytes    : self = ("bytes",     "Tipo de dado Bytes")
+    Function : self = ("function",  "Tipo de dado Função")
+    Class    : self = ("type",      "Tipo de dado Classe")
+    Undefined: self = ("undefined", "Tipo de dado Indefinido")
 '''
     with open(datatype_file, 'w', encoding='utf-8') as f:
         f.write(datatype_code)
@@ -95,7 +96,6 @@ class Recid(EDTController):
     """
     def __init__(self, value: EDTController.any_type = 0):
         super().__init__("onlyNumbers", DataType.Number, value)
-        self.value = value
 '''
     with open(recid_file, 'w', encoding='utf-8') as f:
         f.write(recid_code)

@@ -1,5 +1,4 @@
 from enum   import Enum as _Enum, EnumMeta as _EnumMeta
-from typing import Union, TypeAlias, Any
 from .operator import OperationManager
 
 class BaseEnum_Utils:
@@ -21,11 +20,47 @@ class BaseEnum_Utils:
 
 class CustomEnumMeta(_EnumMeta):
     ''' Metaclass customizada '''
+    def __new__(mcs, name, bases, namespace, **kwargs):
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+                
+        if bases and any(isinstance(base, CustomEnumMeta) for base in bases):            
+            annotations = {}
+            for member_name in namespace.get('_member_names_', []):
+                annotations[member_name] = cls
+                        
+            controller_stub_name = f"_{name}Instance"
+            controller_stub_attrs = {
+                '__module__': cls.__module__,
+                '__annotations__': annotations.copy()
+            }
+                        
+            cls._controller_stub = type(controller_stub_name, (BaseEnumController,), controller_stub_attrs)
+        
+        return cls
+    
     def __call__(cls, value=None):
         if isinstance(value, tuple) and len(value) == 2:
-            return super().__call__(value)        
-        controller = object.__new__(BaseEnumController)
+            return super().__call__(value)
+                
+        controller_class_name = f"{cls.__name__}Controller"
+                
+        attrs = {
+            'enum_cls': cls,
+            '__module__': cls.__module__
+        }
+                
+        annotations = {}
+        for member in cls:
+            attrs[member.name] = member
+            annotations[member.name] = cls
+        
+        attrs['__annotations__'] = annotations
+                
+        controller_cls = type(controller_class_name, (BaseEnumController,), attrs)
+                
+        controller = object.__new__(controller_cls)
         controller.enum_cls = cls
+        
         if value is None:
             controller._value = list(cls)[0]
         else:
@@ -41,6 +76,7 @@ class CustomEnumMeta(_EnumMeta):
                         break
                 if controller._value is None:
                     raise ValueError(f'Valor "{value}" inválido para {cls.__name__}')
+        
         return controller
 
 class Enum(BaseEnum_Utils, _Enum, metaclass=CustomEnumMeta):
@@ -71,8 +107,7 @@ class BaseEnumController(BaseEnum_Utils, OperationManager):
             enum_cls = self.__class__._enum_cls
         self.enum_cls = enum_cls
         self._value = None
-        
-        # Adiciona membros do Enum como atributos da instância para IntelliSense
+                
         for member in enum_cls:
             setattr(self, member.name, member)
 
