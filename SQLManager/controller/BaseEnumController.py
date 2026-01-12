@@ -1,5 +1,5 @@
 from enum   import Enum as _Enum, EnumMeta as _EnumMeta
-from typing import Union, TypeAlias
+from typing import Union, TypeAlias, Any
 from .operator import OperationManager
 
 class BaseEnum_Utils:
