@@ -113,9 +113,9 @@ class EDTController(EDT_Utils, OperationManager):
         if edt_value is None or edt_value == "":
             return edt_value                                
         
+        # Valida tipo se definido
         if self.type_id is not None:
             expected_type = self.type_id.value if hasattr(self.type_id, 'value') else self.type_id
-            # Só valida se for realmente um tipo
             if isinstance(expected_type, type):
                 if not isinstance(edt_value, expected_type):
                     raise ValueError(
@@ -123,17 +123,22 @@ class EDTController(EDT_Utils, OperationManager):
                         f"deve ser do tipo {SystemController.custom_text(expected_type.__name__, 'red', False, True)} "
                         f"e atualmente é {SystemController.custom_text(type(edt_value).__name__, 'red', False, True)}\n"
                     )
-        elif not self.regex.is_valid(edt_value):
+        
+        # Valida regex (sempre, independente do tipo)
+        if not self.regex.is_valid(edt_value):
             raise ValueError(
                 f"\nValor {SystemController.custom_text(edt_value, 'blue')} "
                 f"não corresponde ao formato esperado.\nFormato esperado: "
                 f"{SystemController.custom_text(self.regex.regexId, 'red', False, True)}\n"
             )
-        elif limit is not None and len(str(edt_value)) > limit:
+        
+        # Valida limite se definido
+        if limit is not None and len(str(edt_value)) > limit:
             raise ValueError(
                 f"\nValor {SystemController.custom_text(edt_value, 'blue')} "
                 f"excede o limite de {SystemController.custom_text(limit, 'red', False, True)} caracteres\n"
             )
+        
         self._value = edt_value
         return edt_value          
 
