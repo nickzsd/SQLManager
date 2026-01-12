@@ -71,6 +71,10 @@ class BaseEnumController(BaseEnum_Utils, OperationManager):
             enum_cls = self.__class__._enum_cls
         self.enum_cls = enum_cls
         self._value = None
+        
+        # Adiciona membros do Enum como atributos da instância para IntelliSense
+        for member in enum_cls:
+            setattr(self, member.name, member)
 
         if value is None:
             self._value = list(enum_cls)[0]
