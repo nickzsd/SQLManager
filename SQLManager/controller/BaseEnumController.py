@@ -51,7 +51,6 @@ class CustomEnumMeta(_EnumMeta):
                 
         annotations = {}
         for member in cls:
-            attrs[member.name] = member
             annotations[member.name] = cls
         
         attrs['__annotations__'] = annotations
