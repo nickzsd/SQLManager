@@ -125,7 +125,10 @@ class BaseEnumController(BaseEnum_Utils, OperationManager):
     def __getattr__(self, name):
         '''Permite acessar membros do Enum diretamente através do controller'''
         if hasattr(self.enum_cls, name):
-            return getattr(self.enum_cls, name)
+            member = getattr(self.enum_cls, name)
+            if isinstance(member, _Enum):                
+                return self.enum_cls(member)
+            return member
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
     
     def __dir__(self):

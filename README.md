@@ -163,25 +163,26 @@ class ItemType(BaseEnumController.Enum):
 
 ### Enum Obrigatório (src/model/enum/DataType.py)
 ```python
+from typing import Self
 from SQLManager import BaseEnumController
 
 class DataType(BaseEnumController.Enum):
     '''
     Enumeração de tipos de dados (texto/texto), com label descritivo.
     '''
-    Null      = ("NoneType",  "Tipo de dado Nulo")
-    String    = ("str",       "Tipo de dado String")
-    Number    = ("int",       "Tipo de dado Number")
-    Float     = ("float",     "Tipo de dado Float")
-    Boolean   = ("bool",      "Tipo de dado Boolean")
-    Array     = ("list",      "Tipo de dado Lista")
-    Object    = ("dict",      "Tipo de dado Dicionário")
-    Tuple     = ("tuple",     "Tipo de dado Tupla")
-    Set       = ("set",       "Tipo de dado Conjunto")
-    Bytes     = ("bytes",     "Tipo de dado Bytes")
-    Function  = ("function",  "Tipo de dado Função")
-    Class     = ("type",      "Tipo de dado Classe")
-    Undefined = ("undefined", "Tipo de dado Indefinido")
+    Null      : Self = ("NoneType",  "Tipo de dado Nulo")
+    String    : Self = ("str",       "Tipo de dado String")
+    Number    : Self = ("int",       "Tipo de dado Number")
+    Float     : Self = ("float",     "Tipo de dado Float")
+    Boolean   : Self = ("bool",      "Tipo de dado Boolean")
+    Array     : Self = ("list",      "Tipo de dado Lista")
+    Object    : Self = ("dict",      "Tipo de dado Dicionário")
+    Tuple     : Self = ("tuple",     "Tipo de dado Tupla")
+    Set       : Self = ("set",       "Tipo de dado Conjunto")
+    Bytes     : Self = ("bytes",     "Tipo de dado Bytes")
+    Function  : Self = ("function",  "Tipo de dado Função")
+    Class     : Self = ("type",      "Tipo de dado Classe")
+    Undefined : Self = ("undefined", "Tipo de dado Indefinido")
 ```
 
 ### EDT (src/model/EDTs/ItemId.py)
@@ -195,14 +196,12 @@ class ItemId(EDTController):
     Args:
         value str: Identificação do item
     '''
-    def __init__(self, value: EDTController.Any_Type() = ""):
-        super().__init__("any", DataType.String, value, 50)
-        self.value = value
+    def __init__(self, value: EDTController.Any_Type = ""):
+        super().__init__("any", DataType.String, value, 50)        
 ```
 
 ### EDT Obrigatório (src/model/EDTs/Recid.py)
 ```python
-from typing import Any
 from SQLManager import EDTController
 from model.enum import DataType
 
@@ -212,9 +211,8 @@ class Recid(EDTController):
     Args:
         value number: Identificador a ser validado
     '''
-    def __init__(self, value: Any = 0):
-        super().__init__("onlyNumbers", DataType.Number, value)
-        self.value = value
+    def __init__(self, value: EDTController.Any_Type = 0):
+        super().__init__("onlyNumbers", DataType.Number, value)        
 ```
 
 ### Table (src/model/tables/Products.py)
@@ -442,7 +440,7 @@ with db.transaction() as trs:
 ### Transações com Níveis (TTS)
 
 ```python
-# Níveis de transação (estilo AX/D365)
+# Níveis de transação
 db.ttsbegin()
 try:
     db.executeCommand("UPDATE Table1 SET Field = ?", (value,))
@@ -468,7 +466,7 @@ from model import EnumPack
 
 # EDT com regex built-in
 email = EDTController('email', EnumPack.DataType.String)
-email.value = 'user@example.com'  # Válido
+email = 'user@example.com'  # Válido
 print(email)  # 'user@example.com' (via __str__)
 
 # EDT com limite de caracteres
@@ -476,7 +474,7 @@ name = EDTController('any', EnumPack.dataType.String, limit=50)
 name = 'Nome do Produto'  #  Válido
 
 # EDT com regex customizado
-product_code = EDTController('ProductCode', EnumPack.dataType.Enum_cls.String)
+product_code = EDTController('ProductCode', EnumPack.dataType.String)
 product_code = 'PRD-123456'  #  Válido
 
 # Validação automática

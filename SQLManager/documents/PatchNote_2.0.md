@@ -1,7 +1,7 @@
 # SQLManager 2.0 - Patch Notes
 
 Data: 12 de Janeiro de 2026
-Versão: 2.0.0
+Versão: 2.1.0
 
 ---
 
@@ -208,20 +208,20 @@ DEPOIS (v2.0):
 ```python
 # Managers especializados com mixins
 class _TTS_Manager:
-    @staticmethod
+    @classmethod
     def ttsbegin(self): pass
     
-    @staticmethod
+    @classmethod
     def ttscommit(self): pass
     
-    @staticmethod
+    @classmethod
     def ttsabort(self): pass
 
 class _Consult_Manager:
-    @staticmethod
+    @classmethod
     def doQuery(self, query, params): pass
     
-    @staticmethod
+    @classmethod
     def executeCommand(self, command, params): pass
 
 class database_connection(_TTS_Manager, _Consult_Manager):
@@ -447,14 +447,6 @@ products.update_recordset(
     PRICE=100
 )
 ```
-
----
-
-## AGRADECIMENTOS
-
-Agradecimentos especiais aos testes e feedback que possibilitaram esta versão.
-
----
 
 ## SUPORTE
 
