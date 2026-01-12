@@ -1,11 +1,20 @@
 # Setup para o Core como pacote instalável
 
+
 from setuptools import setup, find_packages
+from setuptools.command.install import install
+import os
+
+class CustomInstallCommand(install):
+    '''Atua como um start no pip install'''
+    def run(self):                
+        os.system("python -m SQLManager._model._model_update")
+        install.run(self)
 
 setup(
     name="SQLManager",
-    version="1.0.0",
-    description="Sistema reutilizável para gerenciamento de banco de dados e validações",
+    version="2.0.0",
+    description="Sistema para gerenciamento de banco de dados e validações",
     author="Nicolas Santos",
     author_email="nicolas.santos@avalontecnologia.com.br",
     url="https://github.com/nickzsd/SQLManager",
@@ -32,4 +41,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
     ],
+    cmdclass={
+        'install': CustomInstallCommand,
+    },
 )

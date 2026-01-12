@@ -25,9 +25,24 @@ pip install git+https://github.com/nickzsd/SQLManager.git
 git+https://github.com/nickzsd/SQLManager.git
 ```
 
+> **ATENÇÃO:** O `pip install` executa automaticamente o gerador de modelos durante a instalação. Certifique-se de que:
+> - Seu arquivo `.env` está configurado com as credenciais do banco de dados (variáveis: `DB_SERVER`, `DB_DATABASE`, `DB_USER`, `DB_PASSWORD`)
+> - A pasta `src/` existe na raiz do seu projeto
+> - Todas as tabelas no banco possuem o campo `RECID` (tipo BIGINT)
+>
+> **Exemplo do arquivo `.env`:**
+> ```env
+> DB_SERVER=localhost
+> DB_DATABASE=MeuBanco
+> DB_USER=admin
+> DB_PASSWORD=senha123
+> ```
+
 NOTA: O SQLManager será instalado no ambiente virtual (.venv) do seu projeto, não na pasta src/
 
 ## Passo Obrigatório: Gerar os Modelos
+
+> **NOTA:** Se você instalou via `pip install`, os modelos já foram gerados automaticamente durante a instalação. Este comando só é necessário se você quiser regenerar ou atualizar os modelos.
 
 Após instalar, rode o gerador de modelos para criar as pastas e arquivos necessários:
 
@@ -64,6 +79,55 @@ Para atualizar para a versão mais recente, execute:
 ```bash
 pip install --upgrade --force-reinstall git+https://github.com/nickzsd/SQLManager.git
 ```
+
+---
+
+## Patch Notes
+
+### Versão 2.0.0 (12/01/2026)
+
+**BREAKING CHANGES:**
+- TableController refatorado com API fluente tipo SQLAlchemy
+- Acesso direto aos valores de campos (sem `.value`)
+- WHERE usando operadores nativos ao invés de dicionários
+- JOIN simplificado com `.on()` e operadores
+
+**NOVIDADES:**
+- Operadores sobrecarregados: `==`, `!=`, `<`, `<=`, `>`, `>=`, `.in_()`, `.like()`
+- Operadores lógicos: `&` (AND), `|` (OR)
+- Manager Pattern: SelectManager, InsertManager, UpdateManager, DeleteManager
+- Decorators de validação automática
+- Acesso contextual inteligente aos campos
+
+**MELHORIAS:**
+- database_connection refatorado com managers reutilizáveis
+- _model_update com tratamento de erros não-bloqueante
+- Mensagem de segurança condicional no model update
+- CoreConfig com docstrings raw (sem warnings)
+- Remoção de comentários excessivos
+
+**COMPATIBILIDADE:**
+- Python 3.8+ (testado em 3.13)
+- Breaking changes - revisar código antes de atualizar
+
+**MIGRAÇÃO v1.x → v2.0:**
+```python
+# ANTES (v1.x)
+products.select(
+    where=[{'field': 'PRICE', 'operator': '>', 'value': 100}],
+    columns=['NAME'],
+    options={'limit': 10}
+)
+nome = products.NAME.value
+
+# DEPOIS (v2.0)
+products.select().where(products.PRICE > 100).columns(products.NAME).limit(10)
+nome = products.NAME  # Acesso direto
+```
+
+Para detalhes completos: [PatchNote_2.0.md](SQLManager/documents/PatchNote_2.0.md)
+
+---
 
 ## Controllers - Controladoras
 
@@ -122,7 +186,6 @@ class DataType(BaseEnumController.Enum):
 
 ### EDT (src/model/EDTs/ItemId.py)
 ```python
-from typing import Any
 from SQLManager import EDTController
 from model.enum import DataType
 
@@ -132,7 +195,7 @@ class ItemId(EDTController):
     Args:
         value str: Identificação do item
     '''
-    def __init__(self, value: Any = ""):
+    def __init__(self, value: EDTController.Any_Type() = ""):
         super().__init__("any", DataType.String, value, 50)
         self.value = value
 ```
@@ -263,6 +326,81 @@ CoreConfig.register_multiple_regex({
 
 ## Uso Básico
 
+### Nova API Fluente (v2.0)
+
+```python
+from model import TablePack
+
+# Instanciar tabela
+products = TablePack.Products(db)
+
+# Acesso direto aos valores (sem .value)
+nome = products.NAME  # Retorna string diretamente
+products.NAME = "Novo Nome"  # Setter automático
+
+# Queries com operadores nativos
+products.select().where(products.PRICE > 100)
+products.select().where((products.PRICE > 100) & (products.ACTIVE == 1))
+products.select().where(products.NAME.like('%Notebook%'))
+
+# JOIN simplificado
+categories = TablePack.Categories(db)
+for product, category in products.select().join(categories).on(products.CATEGORYID == categories.RECID):
+    print(f"{product.NAME} - {category.NAME}")
+
+# LEFT JOIN (especificando tipo)
+for product, category in products.select().join(categories, 'LEFT').on(products.CATEGORYID == categories.RECID):
+    print(f"{product.NAME} - {category.NAME if category.NAME else 'Sem categoria'}")
+
+# MÚLTIPLOS JOINs (3+ tabelas)
+suppliers = TablePack.Suppliers(db)
+warehouses = TablePack.Warehouses(db)
+
+for product, category, supplier, warehouse in products.select()\
+    .join(categories).on(products.CATEGORYID == categories.RECID)\
+    .join(suppliers, 'LEFT').on(products.SUPPLIERID == suppliers.RECID)\
+    .join(warehouses, 'INNER').on(products.WAREHOUSEID == warehouses.RECID):
+    print(f"{product.NAME} | {category.NAME} | {supplier.NAME} | {warehouse.NAME}")
+
+# WHERE com campos de tabelas do JOIN
+for product, category in products.select()\
+    .join(categories).on(products.CATEGORYID == categories.RECID)\
+    .where((products.PRICE > 100) & (category.NAME == 'Electronics')):
+    print(f"{product.NAME} ({category.NAME}): R$ {product.PRICE}")
+
+# Instâncias dos JOINs são atualizadas automaticamente
+for product, category in products.select().join(categories).on(products.CATEGORYID == categories.RECID):
+    # Acesso direto aos valores de ambas as tabelas
+    print(f"Produto RECID: {product.RECID}, Nome: {product.NAME}")
+    print(f"Categoria RECID: {category.RECID}, Nome: {category.NAME}")
+    
+    # Pode usar as instâncias normalmente
+    if product.PRICE > 500:
+        product.PRICE = product.PRICE * 0.9
+        product.update()
+
+# Acessando resultados SEM for (direto via execute)
+results = products.select()\
+    .join(categories).on(products.CATEGORYID == categories.RECID)\
+    .execute()
+
+# Acessar primeira linha
+first_product = results[0][0]
+first_category = results[0][1]
+print(f"{first_product.NAME} - {first_category.NAME}")
+
+# Separar por tabela
+all_products = [r[0] for r in results]
+all_categories = [r[1] for r in results]
+
+# Via records (atualizado automaticamente)
+print(f"Total: {len(products.records)}")
+
+# Operações em massa com nova sintaxe
+products.update_recordset(where=products.CATEGORY == 'Electronics', PRICE=100)
+products.delete_from(where=products.ACTIVE == 0)
+```
+
 ### Conexão com Banco de Dados
 
 ```python
@@ -329,9 +467,9 @@ from SQLManager.controller import EDTController
 from model import EnumPack
 
 # EDT com regex built-in
-email = EDTController('email', EnumPack.dataType.String)
-email = 'user@example.com'  #  Válido
-print(email)  # 'user@example.com'
+email = EDTController('email', EnumPack.DataType.String)
+email.value = 'user@example.com'  # Válido
+print(email)  # 'user@example.com' (via __str__)
 
 # EDT com limite de caracteres
 name = EDTController('any', EnumPack.dataType.String, limit=50)
@@ -391,32 +529,34 @@ email = CompanyEmail()
 email = 'joao@minhaempresa.com.br'
 ```
 
-### Sistema de Tables (se disponível)
+### Sistema de Tables (v2.0)
 
 ```python
 from model import TablePack
 
 # Instanciar tabela
-products = TablePack.ProductsTable(db)
+products = TablePack.Products(db)
 
-# Definir valores
-products.RECID = 1
+# Definir valores (acesso direto, sem .value)
 products.NAME  = "Produto Teste"
 products.PRICE = 99.90
 
 # Inserir
 products.insert()
 
-# Buscar
-products.select(recid=1)
-print(products.NAME)
+# Buscar com operadores nativos
+for produto in products.select().where(products.NAME == "Produto Teste"):
+    print(produto.NAME, produto.PRICE)
 
-# Atualizar
+# Atualizar (valores diretos)
 products.NAME = "Produto Atualizado"
 products.update()
 
 # Deletar
 products.delete()
+
+# Operações complexas
+products.select().where((products.PRICE > 50) & (products.ACTIVE == 1)).order_by(products.NAME).limit(10)
 ```
 
 ## Estrutura do Projeto Host

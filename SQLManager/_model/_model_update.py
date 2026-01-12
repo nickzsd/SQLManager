@@ -1,24 +1,6 @@
 '''
-Este jobs, realiza a atualização dos modelos de dados (EDTs, Enums e Tables) no sistema.
-seu processo envolve a leitura das definições atuais no banco de dados e da aplicação em paralelo.
-
-por meio dele as atuailizações de init, __all__ e importações são feitas automaticamente.
-
-logo todos os processos de criação não precisam ser duplicados manualmente.
-
-instruções:
-repositorio: o repositorio tem que ser MODEL dentro do SRC do sistema, caso existe alteração este Jobs deve ser atualizado
-EDTs: conforme o arquivo Instructions.MD na pasta model/EDTs a formatação de class deve ser mantida, porem não é necessario o ajuste manual do init.
-Enums: conforme o arquivo Instructions.MD na pasta model/enum a formatação de class deve ser mantida, porem não é necessario o ajuste manual do init.
-Tables: 
- - conforme o arquivo Instructions.MD na pasta model/tables a formatação vai ser criada automaticamente por meio deste arquivo e tabelas no banco.
- - Recomendações:
-   - todos os def que podem ser gerados para customizações estão no arquivo Instructions.MD
-   - mantenha a nomeclatura dos campos no banco coerentes com enums e edts para melhor funcionamento deste jobs
-     (OBS: enums tem que ser int no banco e edts tem que ser do tipo correto (caso não possuir EDT serão usados somente data types padrões)) 
-   - campos de chaves como recId são obrigatórios, caso o mesmo não exista no banco, o jobs sera interrompido imediatamente.
-   - tabelas apagadas no banco serão removidas da aplicação, o mesmo para campos apagados. então cuidado ao apagar campos ou mudar nomes.
-   - campos novos serão adicionados automaticamente com esta execução.
+Atualização automática de modelos (EDTs, Enums e Tables)
+Lê banco de dados e sincroniza com aplicação, gerando __init__.py automaticamente
 '''
 
 import sys
@@ -27,13 +9,11 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).parent.parent.parent.parent
 
 class utils:
-    """
-    Funções utilitárias
-    """
-    pass
+    '''Funções utilitárias'''
+    
     @staticmethod
     def _clear_init_files_pre_import(_root_dir: Path = None):
-        """Limpa os arquivos __init__.py antes de importar jobs"""
+        '''Limpa arquivos __init__.py antes de importar'''
         if _root_dir is None:
             _root_dir = ROOT_DIR
         model_path = _root_dir / "src" / "model"
@@ -65,7 +45,6 @@ dotenv.load_dotenv()
 
 utils._clear_init_files_pre_import(ROOT_DIR)
 
-# Configurar CoreConfig antes de usar o SQLManager
 from SQLManager import CoreConfig, database_connection, SystemController
 
 if not CoreConfig.is_configured():
@@ -76,9 +55,8 @@ if not CoreConfig.is_configured():
         db_password=os.getenv('DB_PASSWORD')
     )
 
-
 def ensure_datatype_enum(enum_path):
-    """Garante que o Enum DataType exista e esteja correto em src/model/enum/DataType.py."""
+    '''Garante que Enum DataType exista'''
     datatype_file = enum_path / "DataType.py"
     datatype_code = '''from SQLManager import BaseEnumController
 
@@ -104,10 +82,9 @@ class DataType(BaseEnumController.Enum):
         f.write(datatype_code)
 
 def ensure_recid_edt(edts_path):
-    """Garante que o EDT Recid exista e esteja correto em src/model/EDTs/Recid.py."""
+    '''Garante que EDT Recid exista'''
     recid_file = edts_path / "Recid.py"
-    recid_code = '''from typing import Any
-from SQLManager import EDTController
+    recid_code = '''from SQLManager import EDTController
 from model.enum import DataType
 
 class Recid(EDTController):
@@ -116,21 +93,18 @@ class Recid(EDTController):
     Args:
         value number: Identificador a ser validado
     """
-    def __init__(self, value: Any = 0):
+    def __init__(self, value: EDTController.any_type = 0):
         super().__init__("onlyNumbers", DataType.Number, value)
         self.value = value
 '''
     with open(recid_file, 'w', encoding='utf-8') as f:
         f.write(recid_code)
 
-
 class ModelUpdater:
-    """
-    Classe principal para atualização automática de modelos (EDTs, Enums e Tables)
-    """
+    '''Atualização automática de modelos'''
 
     def _generate_model_init(self):
-        """Gera o __init__.py da pasta src/model/ com os imports de pacotes."""
+        '''Gera __init__.py da pasta src/model/'''
         model_init_file = self.model_path / "__init__.py"
         content = (
             "from . import EDTs   as EDTPack\n"
@@ -147,17 +121,14 @@ class ModelUpdater:
 
     def __init__(self):
         self.db = database_connection()
-        '''SOMENTE LEITURA'''
         self.db.connect()
         
-        # Paths - sempre na raiz do projeto do usuário
         project_root = Path.cwd()
         self.model_path  = project_root / "src" / "model"
         self.edts_path   = self.model_path  / "EDTs"
         self.enums_path  = self.model_path  / "enum"
         self.tables_path = self.model_path  / "tables"
 
-        # Garante que as pastas existem
         self.edts_path.mkdir(parents=True, exist_ok=True)
         self.enums_path.mkdir(parents=True, exist_ok=True)
         self.tables_path.mkdir(parents=True, exist_ok=True)
@@ -194,12 +165,12 @@ class ModelUpdater:
         }
     
     def __del__(self):
-        """Garante que a conexão seja fechada"""
+        '''Fecha conexão ao destruir objeto'''
         if hasattr(self, 'db'):
             self.db.disconnect()
     
     def _clear_init_files(self):
-        """Limpa os arquivos __init__.py de EDTs, Enums e Tables"""
+        '''Limpa arquivos __init__.py de EDTs, Enums e Tables'''
         init_files = [
             self.edts_path / "__init__.py",
             self.enums_path / "__init__.py",
@@ -213,36 +184,35 @@ class ModelUpdater:
         print(SystemController().custom_text("Arquivos __init__.py limpos", "red", is_bold=True))
     
     def run(self):
-        """Executa todo o processo de atualização"""
+        '''Executa atualização completa'''
         print("="*40)
         print("MODEL UPDATE")
         print("="*40)
 
-        # ALERTA DE SEGURANÇA
-        print("\nATENÇÃO! Esta execução pode APAGAR arquivos de tabelas da aplicação que não existem mais no banco de dados.")
-        print("Funções customizadas presentes nesses arquivos podem ser PERDIDAS.")
-        print("Recomenda-se realizar BACKUP dos arquivos da pasta src/model/tables antes de prosseguir.")
-        print("Demais necessidades deste processo será a atualização automática dos arquivos __init__.py da model por completo.")
-        print("\nDeseja continuar? (y/n)")
-        resposta = input().strip().lower()
-        if resposta != "y":
-            print("Execução cancelada pelo usuário.")
-            return
+        existing_tables = list(self.tables_path.glob("*.py"))
+        existing_tables = [f for f in existing_tables if not f.name.startswith("_")]
+        
+        if existing_tables:
+            print(f"\n{SystemController().custom_text('ATENÇÃO', 'red', is_bold=True)}")
+            print(f"Tabelas não existentes no banco serão {SystemController().custom_text('REMOVIDAS', 'red', is_bold=True)}.")
+            print(f"Faça {SystemController().custom_text('BACKUP', 'yellow', is_bold=True)} de src/model/tables antes de continuar.")
+            print(f"\nContinuar? ({SystemController().custom_text('y', 'green')}/{SystemController().custom_text('n', 'red')})")
+            resposta = input().strip().lower()
+            if resposta != "y":
+                print("Cancelado.")
+                return
 
         try:
             utils.stepInfo("00", "Limpando arquivos __init__.py")
             self._clear_init_files()
 
-            # Gera o __init__.py da pasta model
             utils.stepInfo("00.0", "Gerando __init__.py da pasta src/model/")
             self._generate_model_init()
 
-            # Enum DataType obrigatório
-            utils.stepInfo("00.1", "Garantindo Enum DataType obrigatório em src/model/enum/")
+            utils.stepInfo("00.1", "Garantindo Enum DataType obrigatório")
             ensure_datatype_enum(self.enums_path)
 
-            # EDT Recid obrigatório
-            utils.stepInfo("00.2", "Garantindo EDT Recid obrigatório em src/model/EDTs/")
+            utils.stepInfo("00.2", "Garantindo EDT Recid obrigatório")
             ensure_recid_edt(self.edts_path)
 
             utils.stepInfo("01.1", "Escaneando EDTs existentes")
@@ -276,18 +246,10 @@ class ModelUpdater:
             raise
 
 class EDT_Manager:
-    """
-    Classe auxiliar para gerenciamento de EDTs
-    """    
-    pass   
-
+    '''Gerenciamento de EDTs'''
+    
     def _scan_existing_edts(_model: ModelUpdater, _ShowEDTs: bool = False):
-        """
-        Escaneia os EDTs existentes no diretório
-        - Parametro:
-        - use _model: Instancia do ModelUpdater
-        - Use _ShowEDTs para exibir a lista completa
-        """
+        '''Escaneia EDTs existentes no diretório'''
         import re
         
         for file in _model.edts_path.glob("*.py"):
@@ -314,7 +276,7 @@ class EDT_Manager:
                 print(f" - {SystemController().custom_text(edt, 'green', is_bold=True)}")
                 
     def _update_edts_init(_model: ModelUpdater):
-        """Atualiza o __init__.py dos EDTs"""
+        '''Atualiza __init__.py dos EDTs'''
         init_file = _model.edts_path / "__init__.py"
                 
         lines = []
@@ -336,18 +298,10 @@ class EDT_Manager:
         print(f"Pacote de EDTs atualizado: {init_file}")
 
 class Enum_Manager:
-    """
-    Classe auxiliar para gerenciamento de Enums    
-    """
-    pass
+    '''Gerenciamento de Enums'''
 
     def _scan_existing_enums(_model: ModelUpdater, _ShowEnums: bool = False):
-        """
-        Escaneia os Enums existentes no diretório
-        - Parametro:
-        - use _model: Instancia do ModelUpdater
-        - Use _ShowEnums para exibir a lista completa
-        """
+        '''Escaneia Enums existentes no diretório'''
         import re
         
         for file in _model.enums_path.glob("*.py"):
@@ -374,7 +328,7 @@ class Enum_Manager:
                 print(f" - {SystemController().custom_text(enum, 'green', is_bold=True)}")
 
     def _update_enums_init(_model: ModelUpdater):
-        """Atualiza o __init__.py dos Enums"""
+        '''Atualiza __init__.py dos Enums'''
         init_file = _model.enums_path / "__init__.py"
                 
         lines = []
@@ -396,17 +350,10 @@ class Enum_Manager:
         print(f"Pacote de Enums atualizado: {init_file}")
 
 class Table_Manager:
-    """
-    Classe auxiliar para gerenciamento de Tables
-    """
-    pass   
+    '''Gerenciamento de Tables'''
+    
     def _scan_existing_tables(_model: ModelUpdater, _ShowTables: bool = False):
-        """
-        Escaneia os Tables existentes no diretório
-        - Parametro:
-        - use _model: Instancia do ModelUpdater
-        - Use _ShowTables para exibir a lista completa
-        """
+        '''Escaneia Tables existentes no diretório'''
         import re
         
         for file in _model.tables_path.glob("*.py"):
@@ -433,7 +380,7 @@ class Table_Manager:
                 print(f" - {table}")
 
     def _update_tables(_model: ModelUpdater):
-        """Atualiza as Tables baseadas nas tabelas do banco de dados"""        
+        '''Atualiza Tables baseadas no banco de dados'''        
         query = """
             SELECT TABLE_NAME 
             FROM INFORMATION_SCHEMA.TABLES 
@@ -445,9 +392,12 @@ class Table_Manager:
         db_tables = [row[0] for row in tables]
         
         print(f"Encontradas {SystemController().custom_text(len(db_tables), 'red', is_bold=True)} tabelas no banco de dados")                        
-                
+        
+        skipped_tables = []
         for table_name in db_tables:
-            Table_Manager._update_single_table(_model, table_name)
+            error_info = Table_Manager._update_single_table(_model, table_name)
+            if error_info:
+                skipped_tables.append(error_info)
                 
         db_tables_lower = set(t.lower() for t in db_tables)
                 
@@ -466,10 +416,18 @@ class Table_Manager:
             if file_stem in _model.table_file_to_class:
                 del _model.table_file_to_class[file_stem]
         
+        if skipped_tables:
+            print(f"\n{SystemController().custom_text('TABELAS NÃO PROCESSADAS', 'yellow', is_bold=True)}")
+            print("="*60)
+            for error_info in skipped_tables:
+                print(f"{SystemController().custom_text('Tabela:', 'cyan')} {error_info['table']}")
+                print(f"{SystemController().custom_text('Motivo:', 'red')} {error_info['reason']}")
+                print("-"*60)
+        
         Table_Manager._scan_existing_tables(_model, _ShowTables=True)
 
     def _update_tables_init(_model: ModelUpdater):
-        """Atualiza o __init__.py de tables"""
+        '''Atualiza __init__.py de tables'''
         init_file = _model.tables_path / "__init__.py"
                 
         lines = []
@@ -491,7 +449,10 @@ class Table_Manager:
         print(f"Pacote de Tables atualizado: {init_file}")
 
     def _update_single_table(_model: ModelUpdater, table_name: str):
-        """Atualiza/Cria uma tabela específica"""        
+        '''
+        Atualiza/Cria tabela específica
+        Returns: Dict com erro ou None se sucesso
+        '''        
         query = """
             SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, CHARACTER_MAXIMUM_LENGTH
             FROM INFORMATION_SCHEMA.COLUMNS
@@ -502,10 +463,8 @@ class Table_Manager:
         columns = _model.db.doQuery(query, (table_name,))
         
         if not columns:
-            print(f"Tabela {table_name} sem colunas, skip..")
-            return
+            return {'table': table_name, 'reason': 'Tabela sem colunas'}
         
-        #RECID
         recid_column = None
         for col in columns:
             if col[0].upper() == 'RECID':
@@ -513,29 +472,30 @@ class Table_Manager:
                 break
         
         if not recid_column:
-            print(f"ERRO: Tabela {table_name} não possui campo RECID obrigatório!")
-            raise Exception(f"Tabela {table_name} não possui campo RECID obrigatório")
+            return {'table': table_name, 'reason': 'Campo RECID obrigatório não encontrado'}
                 
         recid_type = recid_column[1].lower()
         if recid_type != 'bigint':
-            print(f"ERRO: Tabela {table_name} o campo RECID deve ser do tipo BIGINT! (Tipo atual: {recid_type})")
-            raise Exception(f"Tabela {table_name} com campo RECID inválido - tipo {recid_type} ao invés de bigint")
+            return {'table': table_name, 'reason': f'Campo RECID deve ser BIGINT (encontrado: {recid_type.upper()})'}
         
         table_file = _model.tables_path / f"{table_name}.py"
         
-        # preserva métodos customizados
-        if table_file.exists():
-            table_code = Table_Manager._update_existing_table(_model, table_name, columns, table_file)
-        else:
-            table_code = Table_Manager._generate_table_class(_model, table_name, columns)
-                
-        with open(table_file, 'w', encoding='utf-8') as f:
-            f.write(table_code)
-        
-        print(f"Atualizada: {SystemController().custom_text(table_name, 'green', is_bold=True)}")
+        try:
+            if table_file.exists():
+                table_code = Table_Manager._update_existing_table(_model, table_name, columns, table_file)
+            else:
+                table_code = Table_Manager._generate_table_class(_model, table_name, columns)
+                    
+            with open(table_file, 'w', encoding='utf-8') as f:
+                f.write(table_code)
+            
+            print(f"Atualizada: {SystemController().custom_text(table_name, 'green', is_bold=True)}")
+            return None
+        except Exception as e:
+            return {'table': table_name, 'reason': f'Erro ao gerar código: {str(e)}'}
     
     def _update_existing_table(_model: ModelUpdater, table_name: str, columns, table_file: Path) -> str:
-        """Atualiza tabela existente preservando métodos customizados"""
+        '''Atualiza tabela existente preservando métodos customizados'''
         import re
         
         with open(table_file, 'r', encoding='utf-8') as f:
@@ -616,7 +576,7 @@ class Table_Manager:
         return "\n".join(lines)
     
     def _generate_table_class(_model: ModelUpdater, table_name: str, columns) -> str:
-        """Gera o código Python para uma classe de tabela"""
+        '''Gera código Python para classe de tabela'''
         lines = []
                 
         lines.append("from SQLManager import TableController, EDTController")
@@ -647,7 +607,7 @@ class Table_Manager:
         return "\n".join(lines)
         
     def _detect_field_type(_model: ModelUpdater, field_name: str, sql_type: str, max_length) -> str:
-        """Detecta o tipo de campo apropriado (EDT, Enum ou tipo padrão)"""
+        '''Detecta tipo de campo apropriado (EDT, Enum ou padrão)'''
                 
         if field_name in _model.available_edts:
             return f"EDTPack.{_model.available_edts[field_name]}()"

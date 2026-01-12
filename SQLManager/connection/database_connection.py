@@ -1,35 +1,88 @@
 import os
 import pyodbc
 import threading
+
 from queue import Queue, Empty
+from typing import Union, TypeAlias
 from ..CoreConfig import CoreConfig
 
-class Transaction:
+_Connection: TypeAlias = Union['database_connection', 'Transaction']
+
+class _TTS_Manager:
+    '''
+    Gerenciador de níveis de transação (TTS)
+    '''
+    
+    @staticmethod
+    def ttsbegin(self: _Connection):
+        '''Adiciona um nível de transação'''
+        if self.tts_level == 0:
+            self.connection.autocommit = False
+        self.tts_level += 1
+
+    @staticmethod
+    def ttscommit(self: _Connection):
+        '''Remove um nível de transação, e faz commit se for o último'''
+        if self.tts_level > 0:
+            self.tts_level -= 1
+            if self.tts_level == 0:
+                self.connection.commit()
+                self.connection.autocommit = True
+
+    @staticmethod
+    def ttsabort(self: _Connection):
+        '''Aborta a transação, desfazendo todas as operações'''
+        if self.tts_level > 0:
+            self.connection.rollback()
+            self.connection.autocommit = True
+            self.tts_level = 0
+
+class _Consult_Manager:
+    '''
+    Gerenciador de consultas (queries) e comandos (execute)
+    '''
+    
+    @staticmethod
+    def doQuery(self: _Connection, query: str, params: tuple = ()):
+        '''Realiza uma query na conexão'''
+        cursor = self.connection.cursor()
+        cursor.execute(query, params)
+        results = cursor.fetchall()
+        cursor.close()
+        return results
+    
+    @staticmethod
+    def executeCommand(self: _Connection, command: str, params: tuple = ()):
+        '''Executa um comando na conexão'''
+        cursor = self.connection.cursor()
+        cursor.execute(command, params)
+        if isinstance(self, database_connection):
+            self.connection.commit()
+        cursor.close()
+
+class Transaction (_TTS_Manager, _Consult_Manager):
     """
     Transação isolada com conexão própria.
 
     Uma transação totalmente isolada, semelhante a um "copia e cola" da database_connection,
     mas com conexão própria.
 
-    #Exemplo de uso:
         with database.transaction() as trs:
             -Use a transação isolada
             ProductsTable = source.TablePack.ProductsTable(trs)
             -No final, commit ou abort é automático
 
-    #Recomendações:
         - Instancie tabelas usando a transaction, não a database_connection.
         - Você pode usar begin, commit, abort normalmente dentro da transação,
           ou deixar o 'with' cuidar disso automaticamente.
         - Se usar ttsbegin da TableController integrada à tabela, será um nível de tts
           para a consulta da tabela, não para a transação inteira.
 
-    #Importante:
         O commit ou abort é feito automaticamente ao final do bloco 'with'.
     """
     
-    def __init__(self, _db_instance: 'database_connection'):
-        self._db         = _db_instance
+    def __init__(self, _dbself: 'database_connection'):
+        self._db         = _dbself
         self._connection = None
         self._tts_level  = 0
     
@@ -59,43 +112,8 @@ class Transaction:
             self._db._return_connection(self._connection)
             self._connection = None
         return False
-    
-    def ttsbegin(self):
-        '''adiciona um nivel de transação'''
-        if self._tts_level == 0:
-            self._connection.autocommit = False
-        self._tts_level += 1
-    
-    def ttscommit(self):
-        '''finaliza um nivel de transação'''
-        if self._tts_level > 0:
-            self._tts_level -= 1
-            if self._tts_level == 0:
-                self._connection.commit()
-                self._connection.autocommit = True
-    
-    def ttsabort(self):
-        '''aborta o nivel de transação'''
-        if self._tts_level > 0:
-            self._connection.rollback()
-            self._connection.autocommit = True
-            self._tts_level = 0
-    
-    def doQuery(self, query: str, params: tuple = ()):
-        '''realiza uma query na transação'''
-        cursor = self.connection.cursor()
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-        cursor.close()
-        return results
-    
-    def executeCommand(self, command: str, params: tuple = ()):
-        '''executa um comando na transação'''
-        cursor = self.connection.cursor()
-        cursor.execute(command, params)
-        cursor.close()
 
-class database_connection:
+class database_connection (_TTS_Manager, _Consult_Manager):
     '''
     classe de controle de banco com pool de conexões e transações
     Foi realizado o processo de modificação para que seja possivel usar transações isoladas (KNEX como foi demonstrado)
@@ -136,7 +154,6 @@ class database_connection:
             2. CoreConfig (configurado pelo projeto host)
             3. Variáveis de ambiente (.env)
         """
-        # Tenta obter do CoreConfig primeiro, depois do ambiente
         if CoreConfig.is_configured():
             config = CoreConfig.get_db_config()
             server = _Server or config['server']
@@ -164,7 +181,7 @@ class database_connection:
         self._local   = threading.local() 
     
     @property
-    def connection(self):        
+    def connection(self):
         if not hasattr(self._local, 'connection') or not self._local.connection:
             self._local.connection = self._get_connection()
         return self._local.connection
@@ -220,36 +237,6 @@ class database_connection:
             except:
                 break
 
-    def doQuery(self, query: str, params: tuple = ()):
-        cursor = self.connection.cursor()
-        cursor.execute(query, params)
-        results = cursor.fetchall()
-        cursor.close()
-        return results
-    
-    def executeCommand(self, command: str, params: tuple = ()):
-        cursor = self.connection.cursor()
-        cursor.execute(command, params)
-        self.connection.commit()
-        cursor.close()
-    
-    def ttsbegin(self):
-        if self.tts_level == 0:
-            self.connection.autocommit = False
-        self.tts_level += 1
-    
-    def ttscommit(self):
-        if self.tts_level > 0:
-            self.tts_level -= 1
-            if self.tts_level == 0:
-                self.connection.commit()
-                self.connection.autocommit = True
-    
-    def ttsabort(self):
-        if self.tts_level > 0:
-            self.connection.rollback()
-            self.connection.autocommit = True
-            self.tts_level = 0
-    
     def transaction(self) -> Transaction:
         return Transaction(self)
+    

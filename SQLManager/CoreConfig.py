@@ -1,4 +1,4 @@
-"""
+r"""
 CoreConfig - Sistema de Configuração para o Core
 
 Este módulo permite que projetos externos configurem o Core
@@ -7,7 +7,6 @@ sem modificar seus arquivos internos.
 Uso no projeto host:
     from core import CoreConfig
     
-    # Configurar antes de usar qualquer funcionalidade do core
     CoreConfig.configure(
         db_server='localhost',
         db_database='MyDB',
@@ -15,7 +14,6 @@ Uso no projeto host:
         db_password='pass123'
     )
     
-    # Registrar regex customizados
     CoreConfig.register_regex('CustomEmail', r'^[\w\.-]+@mycompany\.com$')
 """
 
@@ -27,17 +25,14 @@ class CoreConfig:
     Classe estática para configuração global do Core
     """
     
-    # Configurações de banco de dados
     _db_server: Optional[str] = None
     _db_database: Optional[str] = None
     _db_user: Optional[str] = None
     _db_password: Optional[str] = None
     _db_driver: str = "ODBC Driver 18 for SQL Server"
     
-    # Registro de regex customizados
     _custom_regex: Dict[str, str] = {}
     
-    # Flag para verificar se foi configurado
     _is_configured: bool = False
     
     @classmethod
@@ -67,7 +62,6 @@ class CoreConfig:
                 db_password='pass123'
             )
         """
-        # Se load_from_env, tenta carregar do ambiente primeiro
         if load_from_env:
             cls._db_server = db_server or os.getenv('DB_SERVER')
             cls._db_database = db_database or os.getenv('DB_DATABASE')
@@ -107,7 +101,7 @@ class CoreConfig:
     
     @classmethod
     def register_regex(cls, regex_id: str, pattern: str):
-        """
+        r"""
         Registra um novo padrão regex customizado
         
         Args:
@@ -117,14 +111,13 @@ class CoreConfig:
         Exemplo:
             CoreConfig.register_regex('CompanyEmail', r'^[\w\.-]+@mycompany\.com$')
             
-            # Depois pode usar em EDTs:
             my_edt = EDTController('CompanyEmail', DataType.String)
         """
         cls._custom_regex[regex_id] = pattern
     
     @classmethod
     def register_multiple_regex(cls, regex_dict: Dict[str, str]):
-        """
+        r"""
         Registra múltiplos padrões regex de uma vez
         
         Args:
@@ -175,7 +168,7 @@ class CoreConfig:
     
     @classmethod
     def configure_from_dict(cls, config: Dict[str, Any]):
-        """
+        r"""
         Configura a partir de um dicionário
         
         Args:
@@ -202,6 +195,5 @@ class CoreConfig:
             load_from_env=config.get('load_from_env', True)
         )
         
-        # Registra regex customizados se existirem
         if 'custom_regex' in config:
             cls.register_multiple_regex(config['custom_regex'])

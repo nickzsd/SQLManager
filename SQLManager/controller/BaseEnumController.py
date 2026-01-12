@@ -1,4 +1,23 @@
-from enum import Enum as _Enum, EnumMeta as _EnumMeta
+from enum   import Enum as _Enum, EnumMeta as _EnumMeta
+from typing import Union, TypeAlias
+from .operator import OperationManager
+
+class BaseEnum_Utils:
+    '''Classe utilitária para Enums e Controllers'''
+    def _enum_class(self):
+        return getattr(self, 'enum_cls', self)
+
+    def get_keys(self):
+        return [member.name for member in self._enum_class()]
+
+    def get_values(self):
+        return [member.value for member in self._enum_class()]
+
+    def get_labels(self):
+        return [member.label for member in self._enum_class()]
+
+    def get_map(self):
+        return [{'value': member.value, 'label': member.label} for member in self._enum_class()]
 
 class CustomEnumMeta(_EnumMeta):
     ''' Metaclass customizada '''
@@ -24,8 +43,8 @@ class CustomEnumMeta(_EnumMeta):
                     raise ValueError(f'Valor "{value}" inválido para {cls.__name__}')
         return controller
 
-class Enum(_Enum, metaclass=CustomEnumMeta):
-    ''' Enum customizado'''
+class Enum(BaseEnum_Utils, _Enum, metaclass=CustomEnumMeta):
+    '''Enum customizado'''
     def __init__(self, value, label):
         self._value_ = value
         self.label   = label
@@ -35,71 +54,9 @@ class Enum(_Enum, metaclass=CustomEnumMeta):
 
     def __repr__(self):
         return f"{self.__class__.__name__}.{self.name} ('{self.value}')"
-    
-    @classmethod
-    def get_by_value(cls, val):
-        """Obtém um membro do enum pelo seu value"""
-        if val is None:
-            return None
-        if isinstance(val, cls):
-            return val
-        for member in cls:
-            if member.value == val:
-                return member
-        return None
-    
-    @classmethod
-    def get_by_key(cls, key):
-        """Obtém um membro do enum pelo seu name/key"""
-        if isinstance(key, str) and hasattr(cls, key):
-            return getattr(cls, key)
-        return None
-    
-    @classmethod
-    def is_valid(cls, val):
-        """Verifica se um valor é válido para este enum"""
-        if isinstance(val, cls):
-            return True
-        if isinstance(val, str) and hasattr(cls, val):
-            return True
-        return any(member.value == val for member in cls)
-    
-    @classmethod
-    def get_label(cls, val):
-        """Obtém o label de um valor"""
-        member = cls.get_by_value(val) or cls.get_by_key(val)
-        return member.label if member else None
-    
-    @classmethod
-    def get_key(cls, val):
-        """Obtém o name/key de um valor"""
-        member = cls.get_by_value(val)
-        return member.name if member else val if isinstance(val, str) and hasattr(cls, val) else None
-    
-    @classmethod
-    def get_values(cls):
-        """Retorna lista de todos os values"""
-        return [member.value for member in cls]
-    
-    @classmethod
-    def get_labels(cls):
-        """Retorna lista de todos os labels"""
-        return [member.label for member in cls]
-    
-    @classmethod
-    def get_keys(cls):
-        """Retorna lista de todos os names/keys"""
-        return [member.name for member in cls]
-    
-    @classmethod
-    def get_map(cls):
-        """Retorna mapa com value e label de todos os membros"""
-        return [{'value': member.value, 'label': member.label} for member in cls]
 
-class BaseEnumController:
-    '''
-    Controlador base para enumerações personalizadas.
-    '''   
+class BaseEnumController(BaseEnum_Utils, OperationManager):
+    '''Controlador base para enumerações personalizadas'''
     _enum_cls      = None
     Enum           = Enum    
     
@@ -149,52 +106,11 @@ class BaseEnumController:
         if isinstance(val, self.enum_cls):
             self._value = val
             return
-        # Busca por key (name)
         if isinstance(val, str) and hasattr(self.enum_cls, val):
             self._value = getattr(self.enum_cls, val)
             return
-        # Busca por value
         for member in self.enum_cls:
             if member.value == val:
                 self._value = member
                 return
         raise ValueError(f'Valor "{val}" inválido')
-
-    def is_valid(self, val):
-        if isinstance(val, self.enum_cls):
-            return True
-        if isinstance(val, str) and hasattr(self.enum_cls, val):
-            return True
-        return any(member.value == val for member in self.enum_cls)
-
-    def get_label(self, val):
-        if isinstance(val, self.enum_cls):
-            return val.label
-        if isinstance(val, str) and hasattr(self.enum_cls, val):
-            return getattr(self.enum_cls, val).label
-        for member in self.enum_cls:
-            if member.value == val:
-                return member.label
-        return None
-
-    def get_key(self, val):
-        if isinstance(val, self.enum_cls):
-            return val.name
-        if isinstance(val, str) and hasattr(self.enum_cls, val):
-            return val
-        for member in self.enum_cls:
-            if member.value == val:
-                return member.name
-        return None
-
-    def get_values(self):
-        return [member.value for member in self.enum_cls]
-
-    def get_labels(self):
-        return [member.label for member in self.enum_cls]
-
-    def get_map(self):
-        return [{'value': member.value, 'label': member.label} for member in self.enum_cls]
-
-    def get_keys(self):
-        return [member.name for member in self.enum_cls]        
