@@ -82,6 +82,18 @@ class BaseEnumController(BaseEnum_Utils, OperationManager):
 
     def __repr__(self):
         return f"{self.__class__.__name__}({self.value})"
+    
+    def __getattr__(self, name):
+        '''Permite acessar membros do Enum diretamente através do controller'''
+        if hasattr(self.enum_cls, name):
+            return getattr(self.enum_cls, name)
+        raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
+    
+    def __dir__(self):
+        '''Expõe membros do Enum para IntelliSense e autocomplete'''
+        base_attrs = set(super().__dir__())
+        enum_members = set(member.name for member in self.enum_cls)
+        return sorted(base_attrs | enum_members)
 
     @property
     def value(self):
@@ -113,4 +125,4 @@ class BaseEnumController(BaseEnum_Utils, OperationManager):
             if member.value == val:
                 self._value = member
                 return
-        raise ValueError(f'Valor "{val}" inválido')
+        raise ValueError(f'Valor "{val}" inválido')        
