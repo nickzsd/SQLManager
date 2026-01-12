@@ -111,13 +111,14 @@ class EDTController(EDT_Utils, OperationManager):
         
         if self.type_id is not None:
             expected_type = self.type_id.value if hasattr(self.type_id, 'value') else self.type_id
-            
-            if not isinstance(edt_value, expected_type):
-                raise ValueError(
-                    f"\nValor {SystemController.custom_text(edt_value, 'blue')} "
-                    f"deve ser do tipo {SystemController.custom_text(expected_type.__name__, 'red', False, True)} "
-                    f"e atualmente é {SystemController.custom_text(type(edt_value).__name__, 'red', False, True)}\n"
-                )
+            # Só valida se for realmente um tipo
+            if isinstance(expected_type, type):
+                if not isinstance(edt_value, expected_type):
+                    raise ValueError(
+                        f"\nValor {SystemController.custom_text(edt_value, 'blue')} "
+                        f"deve ser do tipo {SystemController.custom_text(expected_type.__name__, 'red', False, True)} "
+                        f"e atualmente é {SystemController.custom_text(type(edt_value).__name__, 'red', False, True)}\n"
+                    )
         elif not self.regex.is_valid(edt_value):
             raise ValueError(
                 f"\nValor {SystemController.custom_text(edt_value, 'blue')} "
@@ -130,7 +131,7 @@ class EDTController(EDT_Utils, OperationManager):
                 f"excede o limite de {SystemController.custom_text(limit, 'red', False, True)} caracteres\n"
             )
         self._value = edt_value
-        return edt_value            
+        return edt_value          
 
     def value_of(self) -> Any:
         return self._value
