@@ -23,8 +23,8 @@ class EDT_Utils:
                 return False  
         elif (isinstance(self, REGEX)):
             if not self._regex_modes:
-                return True
-            return bool(self._regex_modes.match(str(value)))    
+                return False
+            return bool(self._regex_modes.fullmatch(str(value)))
 
 class REGEX (EDT_Utils):
     """Classe REGEX para validações de formatações"""
