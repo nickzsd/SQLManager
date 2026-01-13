@@ -207,7 +207,7 @@ class SelectManager:
             join_clauses.append(f" {join_type} JOIN {ctrl.table_name} AS {alias}{hint} ON {join_on} ")
         
         distinct_keyword = "DISTINCT " if self._distinct else ""
-        query = f"SELECT {distinct_keyword}{', '.join(select_columns)} FROM {self.controller.table_name} AS {main_alias}" + ''.join(join_clauses)
+        query = f"SELECT {distinct_keyword}{', '.join(select_columns)} FROM {self._controller.table_name} AS {main_alias}" + ''.join(join_clauses)
         values = []
         
         if self._where_conditions:
@@ -231,7 +231,7 @@ class SelectManager:
             query += f" ORDER BY {main_alias}.{self._order_by}"
             query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
         
-        rows = self.controller.db.doQuery(query, tuple(values))
+        rows = self._controller.db.doQuery(query, tuple(values))
         
         if has_aggregates or self._group_by:
             results = self._process_aggregate_results(rows, columns, table_columns)
@@ -242,14 +242,14 @@ class SelectManager:
         
         if self._do_update and results:
             if self._joins:
-                self.controller.records = [r[0] for r in results] if results and isinstance(results[0], list) else results
+                self._controller.records = [r[0] for r in results] if results and isinstance(results[0], list) else results
                 if results and isinstance(results[0], list):
-                    self.controller.set_current(results[0][0])
+                    self._controller.set_current(results[0][0])
                 elif results:
-                    self.controller.set_current(results[0])
+                    self._controller.set_current(results[0])
             else:
-                self.controller.records = results
-                self.controller.set_current(results[0])
+                self._controller.records = results
+                self._controller.set_current(results[0])
         
         return results
     
