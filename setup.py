@@ -7,13 +7,13 @@ import os
 
 class CustomInstallCommand(install):
     '''Atua como um start no pip install'''
-    def run(self):                
-        os.system("python -m SQLManager._model._model_update")
+    def run(self):                        
         install.run(self)
+        os.system("python -m SQLManager._model._model_update")
 
 setup(
     name="SQLManager",
-    version="2.0.0",
+    version="2.1.0",
     description="Sistema para gerenciamento de banco de dados e validações",
     author="Nicolas Santos",
     author_email="nicolas.santos@avalontecnologia.com.br",

@@ -1,5 +1,7 @@
 from typing              import Any, List, Dict, Optional, Union, Callable
 from functools           import wraps
+import weakref
+import inspect
 from ..connection        import database_connection as data, Transaction
 from .EDTController      import EDTController
 from .BaseEnumController import BaseEnumController
@@ -55,7 +57,7 @@ class BinaryExpression:
         return (sql, values)
 
 class SelectManager:
-    '''Gerencia operações SELECT com API fluente'''
+    '''Gerencia operações SELECT com API fluente - Auto-executa quando a cadeia termina'''
     
     def __init__(self, table_controller):
         self._controller = table_controller
@@ -69,12 +71,22 @@ class SelectManager:
         self._having_conditions: Optional[List[Dict[str, Any]]] = None
         self._distinct: bool = False
         self._do_update: bool = True
+        self._executed = False
+        self._pending_execution = False
 
     def __get__(self, instance, owner=None):
         self._controller = instance
-        # Se for chamado diretamente sem encadeamento, executa
-        self._auto_execute = True
+        self._executed = False
+        self._pending_execution = False
         return self
+
+    def __del__(self):
+        """Auto-executa quando o SelectManager está prestes a ser destruído"""
+        if self._pending_execution and not self._executed:
+            try:
+                self.execute()
+            except:
+                pass
 
     def __iter__(self):
         """Permite iterar sobre os resultados"""
@@ -87,24 +99,15 @@ class SelectManager:
     def __getitem__(self, index):
         """Permite acesso por índice"""
         return self.execute()[index]
-    
-    def __del__(self):
-        """Executa automaticamente se não foi usado de outra forma"""
-        if hasattr(self, '_auto_execute') and self._auto_execute:
-            try:
-                self.execute()
-            except:
-                pass
 
     def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
         '''Adiciona condições WHERE'''
-        self._auto_execute = False
         self._where_conditions = condition
+        self._pending_execution = True
         return self
     
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define as colunas a serem retornadas'''
-        self._auto_execute = False
         col_names = []
         for col in cols:
             if isinstance(col, (EDTController, BaseEnumController)):
@@ -112,37 +115,37 @@ class SelectManager:
             else:
                 col_names.append(col)
         self._columns = col_names
+        self._pending_execution = True
         return self
     
     def join(self, other_table, join_type: str = 'INNER') -> 'JoinBuilder':
         '''Inicia um JOIN com outra tabela'''
-        self._auto_execute = False
+        self._pending_execution = True
         return JoinBuilder(self, other_table, join_type)
     
     def order_by(self, column: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define ordenação'''
-        self._auto_execute = False
         if isinstance(column, (EDTController, BaseEnumController)):
             self._order_by = column._get_field_name()
         else:
             self._order_by = column
+        self._pending_execution = True
         return self
     
     def limit(self, count: int) -> 'SelectManager':
         '''Define limite de registros'''
-        self._auto_execute = False
         self._limit = count
+        self._pending_execution = True
         return self
     
     def offset(self, count: int) -> 'SelectManager':
         '''Define offset'''
-        self._auto_execute = False
         self._offset = count
+        self._pending_execution = True
         return self
     
     def group_by(self, *columns: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define GROUP BY'''
-        self._auto_execute = False
         col_names = []
         for col in columns:
             if isinstance(col, (EDTController, BaseEnumController)):
@@ -150,29 +153,34 @@ class SelectManager:
             else:
                 col_names.append(col)
         self._group_by = col_names
+        self._pending_execution = True
         return self
     
     def having(self, conditions: List[Dict[str, Any]]) -> 'SelectManager':
         '''Define HAVING para usar com GROUP BY'''
-        self._auto_execute = False
         self._having_conditions = conditions
+        self._pending_execution = True
         return self
     
     def distinct(self) -> 'SelectManager':
         '''Adiciona DISTINCT'''
-        self._auto_execute = False
         self._distinct = True
+        self._pending_execution = True
         return self
     
     def do_update(self, update: bool = True) -> 'SelectManager':
         '''Define se deve atualizar a instância com o resultado'''
-        self._auto_execute = False
         self._do_update = update
+        self._pending_execution = True
         return self
     
     def execute(self) -> List[Any]:
         """Executa a query SELECT e retorna resultados (atualiza a instância automaticamente)"""
-        self._auto_execute = False  # Desabilita auto-execute pois está sendo chamado explicitamente
+        if self._executed:
+            return self._controller.records if hasattr(self._controller, 'records') else []
+        
+        self._executed = True
+        self._pending_execution = False
         validate = self._controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
@@ -718,6 +726,8 @@ class TableController():
         self.Indexes:     Optional[List[str]]            = None
         self.ForeignKeys: Optional[List[Dict[str, Any]]] = None
 
+        self.isUpdate = False
+
         self.__select_manager = SelectManager(self)        
 
     def __getattribute__(self, name: str):
@@ -801,8 +811,21 @@ class TableController():
 
     def update(self) -> bool:
         """Atualiza um registro existente na tabela"""
-        return UpdateManager.update(self)
+        if(not self.isUpdate):
+            raise Exception("Registro não definido para atualização.")
+        
+        ret = UpdateManager.update(self)
+
+        self.isUpdate = False
+
+        return ret  
     
+    def SelectForUpdate(self, _update: bool):
+        '''Marca o Registro para ser atualizado após um select()
+        Uso: table.SelectForUpdate(True) antes de fazer modificações
+        '''
+        self.isUpdate = _update        
+
     def update_recordset(self, where: Optional[Union[FieldCondition, BinaryExpression]] = None, **fields) -> int:
         """Atualiza múltiplos registros em massa"""
         return UpdateManager.update_recordset(self, where, **fields)
