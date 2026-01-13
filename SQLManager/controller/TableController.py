@@ -4,7 +4,6 @@ from ..connection        import database_connection as data, Transaction
 from .EDTController      import EDTController
 from .BaseEnumController import BaseEnumController
 
-
 class FieldCondition:
     '''
     Representa uma condição de campo com operador para construção de WHERE clauses
@@ -26,7 +25,6 @@ class FieldCondition:
         prefix = f"{self.table_alias}." if self.table_alias else ""
         sql = f"{prefix}{self.field_name} {self.operator} ?"
         return (sql, self.value)
-
 
 class BinaryExpression:
     '''Representa uma expressão binária entre condições'''
@@ -56,67 +54,14 @@ class BinaryExpression:
         
         return (sql, values)
 
-
-def validate_insert(func: Callable) -> Callable:
-    '''Decorator para validar operações de INSERT'''
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        validate = self.validate_fields()
-        if not validate['valid']:
-            raise Exception(validate['error'])
-        
-        validate_write = self.validate_write()
-        if not validate_write['valid']:
-            raise Exception(validate_write['error'])
-        
-        return func(self, *args, **kwargs)
-    return wrapper
-
-
-def validate_update(func: Callable) -> Callable:
-    '''Decorator para validar operações de UPDATE'''
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        validate = self.validate_fields()
-        if not validate['valid']:
-            raise Exception(validate['error'])
-        
-        if not hasattr(self, 'RECID') or self._get_field_instance('RECID').value is None:
-            raise Exception("Atualização sem chave primaria, preencha o campo RECID")
-        
-        recid_instance = self._get_field_instance('RECID')
-        if not self.exists(recid_instance == recid_instance.value):
-            raise Exception(f"Registro com RECID {recid_instance.value} não existe na tabela {self.table_name}")
-        
-        return func(self, *args, **kwargs)
-    return wrapper
-
-
-def validate_delete(func: Callable) -> Callable:
-    '''Decorator para validar operações de DELETE'''
-    @wraps(func)
-    def wrapper(self, *args, **kwargs):
-        validate = self.validate_fields()
-        if not validate['valid']:
-            raise Exception(validate['error'])
-        
-        if not hasattr(self, 'RECID') or self._get_field_instance('RECID').value is None:
-            raise Exception("Exclusão sem chave primaria, preencha o campo RECID")
-        
-        recid_instance = self._get_field_instance('RECID')
-        if not self.exists(recid_instance == recid_instance.value):
-            raise Exception(f"Registro com RECID {recid_instance.value} não existe na tabela {self.table_name}")
-        
-        return func(self, *args, **kwargs)
-    return wrapper
 class SelectManager:
     '''Gerencia operações SELECT com API fluente'''
     
     def __init__(self, table_controller):
-        self.controller = table_controller
+        self._controller = table_controller
         self._where_conditions: Optional[Union[FieldCondition, BinaryExpression]] = None
-        self._columns: Optional[List[str]] = None
-        self._joins: List[Dict[str, Any]] = []
+        self._columns:          Optional[List[str]] = None
+        self._joins:    List[Dict[str, Any]] = []
         self._order_by: Optional[str] = None
         self._limit: Optional[int] = None
         self._offset: Optional[int] = None
@@ -124,7 +69,23 @@ class SelectManager:
         self._having_conditions: Optional[List[Dict[str, Any]]] = None
         self._distinct: bool = False
         self._do_update: bool = True
+
+    def __get__(self, instance, owner=None):
+        self._controller = instance
+        return self
+
+    def __iter__(self):
+        """Permite iterar sobre os resultados"""
+        return iter(self.execute())
     
+    def __len__(self):
+        """Retorna o total de resultados"""
+        return len(self.execute())
+    
+    def __getitem__(self, index):
+        """Permite acesso por índice"""
+        return self.execute()[index]
+
     def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
         '''Adiciona condições WHERE'''
         self._where_conditions = condition
@@ -191,7 +152,7 @@ class SelectManager:
     
     def execute(self) -> List[Any]:
         """Executa a query SELECT e retorna resultados (atualiza a instância automaticamente)"""
-        validate = self.controller.validate_fields()
+        validate = self._controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
         
@@ -199,27 +160,27 @@ class SelectManager:
         limit = self._limit or 100
         offset = self._offset or 0
         
-        table_columns = self.controller.get_table_columns()
-        has_aggregates = any(self.controller._is_aggregate_function(col) for col in columns) if columns != ['*'] else False
+        table_columns = self._controller.get_table_columns()
+        has_aggregates = any(self._controller._is_aggregate_function(col) for col in columns) if columns != ['*'] else False
         
         if columns != ['*']:
             col_names = [col[0] for col in table_columns]
             for col in columns:
-                if self.controller._is_aggregate_function(col):
-                    field_name = self.controller._extract_field_from_aggregate(col)
+                if self._controller._is_aggregate_function(col):
+                    field_name = self._controller._extract_field_from_aggregate(col)
                     if field_name and field_name not in col_names:
                         raise Exception(f"Campo '{field_name}' na agregação '{col}' não existe na tabela")
                 elif col not in col_names:
                     raise Exception(f"Coluna inválida: {col}")
         
-        main_alias = self.controller.table_name
+        main_alias = self._controller.table_name
         select_columns = []
         
         if columns == ['*']:
             select_columns += [f"{main_alias}.{col[0]} AS {main_alias}_{col[0]}" for col in table_columns]
         else:
             for col in columns:
-                if self.controller._is_aggregate_function(col):
+                if self._controller._is_aggregate_function(col):
                     alias_name = col.replace('(', '_').replace(')', '').replace('*', 'ALL').replace('.', '_').replace(' ', '')
                     select_columns.append(f"{col} AS {alias_name}")
                 else:
@@ -303,8 +264,8 @@ class SelectManager:
                 sql_idx += 1
         else:
             for col in columns:
-                if self.controller._is_aggregate_function(col):
-                    field_name = self.controller._extract_field_from_aggregate(col)
+                if self._controller._is_aggregate_function(col):
+                    field_name = self._controller._extract_field_from_aggregate(col)
                     if field_name:
                         column_mapping.append((sql_idx, field_name, True))
                     else:
@@ -317,7 +278,7 @@ class SelectManager:
         
         results = []
         for row in rows:
-            main_instance = self.controller.__class__(self.controller.db)
+            main_instance = self._controller.__class__(self._controller.db)
             aggregate_extras = {}
             
             for sql_idx, field_name, is_agg in column_mapping:
@@ -367,19 +328,6 @@ class SelectManager:
         result = [dict(zip([col[0] for col in table_columns], row)) for row in rows]
         return result
     
-    def __iter__(self):
-        """Permite iterar sobre os resultados"""
-        return iter(self.execute())
-    
-    def __len__(self):
-        """Retorna o total de resultados"""
-        return len(self.execute())
-    
-    def __getitem__(self, index):
-        """Permite acesso por índice"""
-        return self.execute()[index]
-
-
 class JoinBuilder:
     """
     Builder para construir JOINs de forma fluente
@@ -413,12 +361,26 @@ class JoinBuilder:
         
         return self.select_manager
 
-
 class InsertManager:
     """
     Gerencia operações INSERT com validação automática
     """
     
+    def validate_insert(func: Callable) -> Callable:
+        '''Decorator para validar operações de INSERT'''
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            validate = self.validate_fields()
+            if not validate['valid']:
+                raise Exception(validate['error'])
+            
+            validate_write = self.validate_write()
+            if not validate_write['valid']:
+                raise Exception(validate_write['error'])
+            
+            return func(self, *args, **kwargs)
+        return wrapper
+
     @validate_insert
     def insert(self) -> bool:
         """
@@ -501,11 +463,28 @@ class InsertManager:
             self.db.ttsabort()
             raise Exception(f"Erro ao inserir registros em massa: {error}")
 
-
 class UpdateManager:
     """
     Gerencia operações UPDATE com validação automática
     """
+
+    def validate_update(func: Callable) -> Callable:
+        '''Decorator para validar operações de UPDATE'''
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            validate = self.validate_fields()
+            if not validate['valid']:
+                raise Exception(validate['error'])
+            
+            if not hasattr(self, 'RECID') or self._get_field_instance('RECID').value is None:
+                raise Exception("Atualização sem chave primaria, preencha o campo RECID")
+            
+            recid_instance = self._get_field_instance('RECID')
+            if not self.exists(recid_instance == recid_instance.value):
+                raise Exception(f"Registro com RECID {recid_instance.value} não existe na tabela {self.table_name}")
+            
+            return func(self, *args, **kwargs)
+        return wrapper
     
     @validate_update
     def update(self) -> bool:
@@ -596,12 +575,29 @@ class UpdateManager:
             self.db.ttsabort()
             raise Exception(f"Erro ao atualizar registros em massa: {error}")
 
-
 class DeleteManager:
     """
     Gerencia operações DELETE com validação automática
     """
     
+    def validate_delete(func: Callable) -> Callable:
+        '''Decorator para validar operações de DELETE'''
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            validate = self.validate_fields()
+            if not validate['valid']:
+                raise Exception(validate['error'])
+            
+            if not hasattr(self, 'RECID') or self._get_field_instance('RECID').value is None:
+                raise Exception("Exclusão sem chave primaria, preencha o campo RECID")
+            
+            recid_instance = self._get_field_instance('RECID')
+            if not self.exists(recid_instance == recid_instance.value):
+                raise Exception(f"Registro com RECID {recid_instance.value} não existe na tabela {self.table_name}")
+            
+            return func(self, *args, **kwargs)
+        return wrapper
+
     @validate_delete
     def delete(self) -> bool:
         """
@@ -657,12 +653,11 @@ class DeleteManager:
             self.db.ttsabort()
             raise Exception(f"Erro ao deletar registros em massa: {error}")
 
-
-class TableController(SelectManager, InsertManager, UpdateManager, DeleteManager):
+class TableController():
     """
     Classe de controle de tabelas do banco de dados (SQL Server) - REFATORADA
     
-    Nova API fluente tipo SQLAlchemy:
+    Nova API:
     - tabela.select().where(tabela.CAMPO == 5)  # Auto-executa ao iterar
     - tabela.select().where((tabela.CAMPO == 5) & (tabela.OUTRO > 10))
     - tabela.select().join(outra).on(tabela.ID == outra.ID)
@@ -689,22 +684,21 @@ class TableController(SelectManager, InsertManager, UpdateManager, DeleteManager
             db (Union[data, Transaction]): Instância de conexão ou transação.
             table_name (str): Nome da tabela no banco de dados.
         '''
-        SelectManager.__init__(self, self)
+        #SelectManager.__init__(self, self)
         
-        self.db = db
+        self.db         = db
         self.table_name = (table_name or self.__class__.__name__).upper()
-        self.records: List[Dict[str, Any]] = []
-        self.Columns: Optional[List[List[Any]]] = None
-        self.Indexes: Optional[List[str]] = None
+
+        self.records:     List[Dict[str, Any]]           = []
+        self.Columns:     Optional[List[List[Any]]]      = None
+        self.Indexes:     Optional[List[str]]            = None
         self.ForeignKeys: Optional[List[Dict[str, Any]]] = None
-    
-    def _get_field_instance(self, name: str):
-        '''
-        Retorna a instância EDT/Enum real de um campo (não o valor).
-        Use quando precisar acessar métodos do EDT/Enum ou criar queries.
-        '''
-        return object.__getattribute__(self, name)
-    
+
+        self.__select_manager = SelectManager(self)
+        self.__insert_manager = InsertManager()
+        self.__update_manager = UpdateManager()
+        self.__delete_manager = DeleteManager()        
+
     def __getattribute__(self, name: str):
         '''
         Intercepta acesso aos campos para comportamento inteligente:
@@ -751,7 +745,7 @@ class TableController(SelectManager, InsertManager, UpdateManager, DeleteManager
             return attr.value
         
         return attr
-    
+  
     def __setattr__(self, name: str, value: Any):
         '''Intercepta atribuições para validar EDT/Enum'''
         if name in ('db', 'table_name', 'records', 'Columns', 'Indexes', 'ForeignKeys',
@@ -774,7 +768,29 @@ class TableController(SelectManager, InsertManager, UpdateManager, DeleteManager
                 else:
                     attr.value = value
                 return
-        object.__setattr__(self, name, value)
+        object.__setattr__(self, name, value)    
+
+    @property
+    def insert(self):
+        return self.__insert_manager.__get__(self)
+
+    @property
+    def update(self):
+        return self.__update_manager.__get__(self)
+
+    @property
+    def delete(self):
+        return self.__delete_manager.__get__(self)
+    
+    def select(self) -> "SelectManager":
+        return self.__select_manager.__get__(self)
+
+    def _get_field_instance(self, name: str):
+        '''
+        Retorna a instância EDT/Enum real de um campo (não o valor).
+        Use quando precisar acessar métodos do EDT/Enum ou criar queries.
+        '''
+        return object.__getattribute__(self, name)         
 
     def _is_aggregate_function(self, column: str) -> bool:
         '''
@@ -1150,7 +1166,7 @@ class TableController(SelectManager, InsertManager, UpdateManager, DeleteManager
                     attr.value = value
                 else:
                     setattr(self, key, value)
-        return self
+        return self    
 
 class CheckParms:
     @staticmethod
