@@ -88,6 +88,14 @@ class Transaction (_TTS_Manager, _Consult_Manager):
             raise Exception("Use 'with transaction'")
         return self._connection
     
+    @property
+    def tts_level(self):
+        return self._tts_level
+    
+    @tts_level.setter
+    def tts_level(self, value):
+        self._tts_level = value
+    
     def __enter__(self):
         '''monta um transação (isolada)'''
         self._connection = self._db._get_connection()
@@ -234,4 +242,3 @@ class database_connection (_TTS_Manager, _Consult_Manager):
 
     def transaction(self) -> Transaction:
         return Transaction(self)
-    
