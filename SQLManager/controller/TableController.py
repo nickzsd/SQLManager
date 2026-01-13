@@ -366,6 +366,15 @@ class InsertManager:
     Gerencia operações INSERT com validação automática
     """
     
+    def __init__(self, table_controller=None):
+        self._controller = table_controller
+    
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        self._controller = instance
+        return self
+    
     def validate_insert(func: Callable) -> Callable:
         '''Decorator para validar operações de INSERT'''
         @wraps(func)
@@ -467,6 +476,15 @@ class UpdateManager:
     """
     Gerencia operações UPDATE com validação automática
     """
+    
+    def __init__(self, table_controller=None):
+        self._controller = table_controller
+    
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        self._controller = instance
+        return self
 
     def validate_update(func: Callable) -> Callable:
         '''Decorator para validar operações de UPDATE'''
@@ -579,6 +597,15 @@ class DeleteManager:
     """
     Gerencia operações DELETE com validação automática
     """
+    
+    def __init__(self, table_controller=None):
+        self._controller = table_controller
+    
+    def __get__(self, instance, owner=None):
+        if instance is None:
+            return self
+        self._controller = instance
+        return self
     
     def validate_delete(func: Callable) -> Callable:
         '''Decorator para validar operações de DELETE'''
@@ -695,9 +722,9 @@ class TableController():
         self.ForeignKeys: Optional[List[Dict[str, Any]]] = None
 
         self.__select_manager = SelectManager(self)
-        self.__insert_manager = InsertManager()
-        self.__update_manager = UpdateManager()
-        self.__delete_manager = DeleteManager()        
+        self.__insert_manager = InsertManager(self)
+        self.__update_manager = UpdateManager(self)
+        self.__delete_manager = DeleteManager(self)        
 
     def __getattribute__(self, name: str):
         '''
