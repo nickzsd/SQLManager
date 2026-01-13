@@ -305,7 +305,7 @@ class SelectManager:
                 main_data[col[0]] = row[idx]
                 idx += 1
             
-            main_instance = self.controller.__class__(self.controller.db)
+            main_instance = self._controller.__class__(self._controller.db)
             main_instance.set_current(main_data)
             join_instances = []
             
