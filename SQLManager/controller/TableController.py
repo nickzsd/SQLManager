@@ -72,6 +72,8 @@ class SelectManager:
 
     def __get__(self, instance, owner=None):
         self._controller = instance
+        # Se for chamado diretamente sem encadeamento, executa
+        self._auto_execute = True
         return self
 
     def __iter__(self):
@@ -85,14 +87,24 @@ class SelectManager:
     def __getitem__(self, index):
         """Permite acesso por índice"""
         return self.execute()[index]
+    
+    def __del__(self):
+        """Executa automaticamente se não foi usado de outra forma"""
+        if hasattr(self, '_auto_execute') and self._auto_execute:
+            try:
+                self.execute()
+            except:
+                pass
 
     def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
         '''Adiciona condições WHERE'''
+        self._auto_execute = False
         self._where_conditions = condition
         return self
     
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define as colunas a serem retornadas'''
+        self._auto_execute = False
         col_names = []
         for col in cols:
             if isinstance(col, (EDTController, BaseEnumController)):
@@ -104,10 +116,12 @@ class SelectManager:
     
     def join(self, other_table, join_type: str = 'INNER') -> 'JoinBuilder':
         '''Inicia um JOIN com outra tabela'''
+        self._auto_execute = False
         return JoinBuilder(self, other_table, join_type)
     
     def order_by(self, column: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define ordenação'''
+        self._auto_execute = False
         if isinstance(column, (EDTController, BaseEnumController)):
             self._order_by = column._get_field_name()
         else:
@@ -116,16 +130,19 @@ class SelectManager:
     
     def limit(self, count: int) -> 'SelectManager':
         '''Define limite de registros'''
+        self._auto_execute = False
         self._limit = count
         return self
     
     def offset(self, count: int) -> 'SelectManager':
         '''Define offset'''
+        self._auto_execute = False
         self._offset = count
         return self
     
     def group_by(self, *columns: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define GROUP BY'''
+        self._auto_execute = False
         col_names = []
         for col in columns:
             if isinstance(col, (EDTController, BaseEnumController)):
@@ -137,21 +154,25 @@ class SelectManager:
     
     def having(self, conditions: List[Dict[str, Any]]) -> 'SelectManager':
         '''Define HAVING para usar com GROUP BY'''
+        self._auto_execute = False
         self._having_conditions = conditions
         return self
     
     def distinct(self) -> 'SelectManager':
         '''Adiciona DISTINCT'''
+        self._auto_execute = False
         self._distinct = True
         return self
     
     def do_update(self, update: bool = True) -> 'SelectManager':
         '''Define se deve atualizar a instância com o resultado'''
+        self._auto_execute = False
         self._do_update = update
         return self
     
     def execute(self) -> List[Any]:
         """Executa a query SELECT e retorna resultados (atualiza a instância automaticamente)"""
+        self._auto_execute = False  # Desabilita auto-execute pois está sendo chamado explicitamente
         validate = self._controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
