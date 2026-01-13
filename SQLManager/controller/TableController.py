@@ -366,15 +366,7 @@ class InsertManager:
     Gerencia operações INSERT com validação automática
     """
     
-    def __init__(self, table_controller=None):
-        self._controller = table_controller
-    
-    def __get__(self, instance, owner=None):
-        if instance is None:
-            return self
-        self._controller = instance
-        return self
-    
+    @staticmethod
     def validate_insert(func: Callable) -> Callable:
         '''Decorator para validar operações de INSERT'''
         @wraps(func)
@@ -391,7 +383,7 @@ class InsertManager:
         return wrapper
 
     @validate_insert
-    def insert(self) -> bool:
+    def insert(controller) -> bool:
         """
         Insere um novo registro na tabela
         Returns:
@@ -400,8 +392,8 @@ class InsertManager:
         fields = []
         values = []
         
-        for key in self.__dict__:
-            attr = self._get_field_instance(key)
+        for key in controller.__dict__:
+            attr = controller._get_field_instance(key)
             if not (isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum))) or key == 'RECID':
                 continue
             fields.append(key)
@@ -410,25 +402,25 @@ class InsertManager:
         if not fields:
             raise Exception("Nenhum campo para inserir")
         
-        query = f"INSERT INTO {self.table_name} (" + ", ".join(fields) + ") OUTPUT INSERTED.RECID VALUES (" + ", ".join(['?'] * len(fields)) + ")"
+        query = f"INSERT INTO {controller.table_name} (" + ", ".join(fields) + ") OUTPUT INSERTED.RECID VALUES (" + ", ".join(['?'] * len(fields)) + ")"
         
         try:
-            self.db.ttsbegin()
-            result = self.db.doQuery(query, tuple(values))
+            controller.db.ttsbegin()
+            result = controller.db.doQuery(query, tuple(values))
             
             new_recid = int(result[0][0]) if result and result[0][0] else None
-            self.db.ttscommit()
+            controller.db.ttscommit()
             
             if new_recid is not None:
-                recid_instance = self._get_field_instance('RECID')
-                results = self.select().where(recid_instance == new_recid).limit(1).do_update(True).execute()
+                recid_instance = controller._get_field_instance('RECID')
+                results = controller.select().where(recid_instance == new_recid).limit(1).do_update(True).execute()
             
             return True
         except Exception as error:
-            self.db.ttsabort()
+            controller.db.ttsabort()
             raise Exception(f"Erro ao inserir registro: {error}")
     
-    def insert_recordset(self, columns: List[str], source_data: List[tuple]) -> int:
+    def insert_recordset(controller, columns: List[str], source_data: List[tuple]) -> int:
         """
         Insere múltiplos registros em massa
         Args:
@@ -437,19 +429,19 @@ class InsertManager:
         Returns:
             int: Número de registros inseridos
         """
-        validate = self.validate_fields()
+        validate = controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
         
         if not columns or not source_data:
             raise Exception("Colunas e dados são obrigatórios para insert_recordset")
         
-        table_columns = self.get_table_columns()
+        table_columns = controller.get_table_columns()
         col_names = [col[0] for col in table_columns]
         
         for col in columns:
             if col.upper() not in col_names:
-                raise Exception(f"Campo '{col}' não existe na tabela {self.table_name}")
+                raise Exception(f"Campo '{col}' não existe na tabela {controller.table_name}")
         
         expected_len = len(columns)
         for idx, row in enumerate(source_data):
@@ -458,34 +450,26 @@ class InsertManager:
         
         placeholders = ', '.join(['?'] * len(columns))
         values_clause = ', '.join([f"({placeholders})" for _ in source_data])
-        query = f"INSERT INTO {self.table_name} ({', '.join(columns)}) VALUES {values_clause}"
+        query = f"INSERT INTO {controller.table_name} ({', '.join(columns)}) VALUES {values_clause}"
         
         flat_values = [val for row in source_data for val in row]
         
         try:
-            self.db.ttsbegin()
-            cursor = self.db.executeCommand(query, tuple(flat_values))
+            controller.db.ttsbegin()
+            cursor = controller.db.executeCommand(query, tuple(flat_values))
             affected_rows = cursor.rowcount if hasattr(cursor, 'rowcount') else len(source_data)
-            self.db.ttscommit()
+            controller.db.ttscommit()
             return affected_rows
         except Exception as error:
-            self.db.ttsabort()
+            controller.db.ttsabort()
             raise Exception(f"Erro ao inserir registros em massa: {error}")
 
 class UpdateManager:
     """
     Gerencia operações UPDATE com validação automática
     """
-    
-    def __init__(self, table_controller=None):
-        self._controller = table_controller
-    
-    def __get__(self, instance, owner=None):
-        if instance is None:
-            return self
-        self._controller = instance
-        return self
 
+    @staticmethod
     def validate_update(func: Callable) -> Callable:
         '''Decorator para validar operações de UPDATE'''
         @wraps(func)
@@ -505,20 +489,20 @@ class UpdateManager:
         return wrapper
     
     @validate_update
-    def update(self) -> bool:
+    def update(controller) -> bool:
         """
         Atualiza um registro existente na tabela
         Returns:
             bool: True se atualizado com sucesso
         """
-        recid_instance = self._get_field_instance('RECID')
-        record = self.select().where(recid_instance == recid_instance.value).limit(1).do_update(False).execute()
+        recid_instance = controller._get_field_instance('RECID')
+        record = controller.select().where(recid_instance == recid_instance.value).limit(1).do_update(False).execute()
         
         values = []
         set_clauses = []
         
-        for key in self.__dict__:
-            attr = self._get_field_instance(key)
+        for key in controller.__dict__:
+            attr = controller._get_field_instance(key)
             if not (isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum))) or key == 'RECID':
                 continue
             if record and (record[0].get(key) == attr.value or record[0].get(key) == getattr(attr, '_value', None)):
@@ -529,25 +513,25 @@ class UpdateManager:
         if not values:
             raise Exception("Nenhum campo foi alterado para atualizar.")
         
-        query = f"UPDATE {self.table_name} SET " + ", ".join(set_clauses) + " WHERE RECID = ?"
-        values.append(self._get_field_instance('RECID').value)
+        query = f"UPDATE {controller.table_name} SET " + ", ".join(set_clauses) + " WHERE RECID = ?"
+        values.append(controller._get_field_instance('RECID').value)
         
         try:
-            self.db.ttsbegin()
-            self.db.executeCommand(query, tuple(values))
-            self.db.ttscommit()
+            controller.db.ttsbegin()
+            controller.db.executeCommand(query, tuple(values))
+            controller.db.ttscommit()
             
-            recid_instance = self._get_field_instance('RECID')
-            updated_record = self.select().where(recid_instance == recid_instance.value).limit(1).do_update(False).execute()
+            recid_instance = controller._get_field_instance('RECID')
+            updated_record = controller.select().where(recid_instance == recid_instance.value).limit(1).do_update(False).execute()
             if updated_record:
-                self.set_current(updated_record[0])
+                controller.set_current(updated_record[0])
             
             return True
         except Exception as error:
-            self.db.ttsabort()
+            controller.db.ttsabort()
             raise Exception(f"Erro ao atualizar registro: {error}")
     
-    def update_recordset(self, where: Optional[Union[FieldCondition, BinaryExpression]] = None, **fields) -> int:
+    def update_recordset(controller, where: Optional[Union[FieldCondition, BinaryExpression]] = None, **fields) -> int:
         """
         Atualiza múltiplos registros em massa
         Args:
@@ -557,25 +541,25 @@ class UpdateManager:
         Returns:
             int: Número de registros afetados
         """
-        validate = self.validate_fields()
+        validate = controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
         
         if not fields:
             raise Exception("Nenhum campo para atualizar")
         
-        table_columns = self.get_table_columns()
+        table_columns = controller.get_table_columns()
         col_names = [col[0] for col in table_columns]
         
         set_values = {}
         for field_key, field_val in fields.items():
             field_name = field_key.upper()
             if field_name not in col_names:
-                raise Exception(f"Campo '{field_name}' não existe na tabela {self.table_name}")
+                raise Exception(f"Campo '{field_name}' não existe na tabela {controller.table_name}")
             set_values[field_name] = field_val
         
         set_clauses = [f"{field} = ?" for field in set_values.keys()]
-        query = f"UPDATE {self.table_name} SET " + ", ".join(set_clauses)
+        query = f"UPDATE {controller.table_name} SET " + ", ".join(set_clauses)
         values = list(set_values.values())
         
         if where:
@@ -584,13 +568,13 @@ class UpdateManager:
             values.extend(where_values if isinstance(where_values, list) else [where_values])
         
         try:
-            self.db.ttsbegin()
-            cursor = self.db.executeCommand(query, tuple(values))
+            controller.db.ttsbegin()
+            cursor = controller.db.executeCommand(query, tuple(values))
             affected_rows = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
-            self.db.ttscommit()
+            controller.db.ttscommit()
             return affected_rows
         except Exception as error:
-            self.db.ttsabort()
+            controller.db.ttsabort()
             raise Exception(f"Erro ao atualizar registros em massa: {error}")
 
 class DeleteManager:
@@ -598,15 +582,7 @@ class DeleteManager:
     Gerencia operações DELETE com validação automática
     """
     
-    def __init__(self, table_controller=None):
-        self._controller = table_controller
-    
-    def __get__(self, instance, owner=None):
-        if instance is None:
-            return self
-        self._controller = instance
-        return self
-    
+    @staticmethod
     def validate_delete(func: Callable) -> Callable:
         '''Decorator para validar operações de DELETE'''
         @wraps(func)
@@ -626,29 +602,29 @@ class DeleteManager:
         return wrapper
 
     @validate_delete
-    def delete(self) -> bool:
+    def delete(controller) -> bool:
         """
         Exclui um registro da tabela
         Returns:
             bool: True se excluído com sucesso
         """
-        query = f"DELETE FROM {self.table_name} WHERE RECID = ?"
+        query = f"DELETE FROM {controller.table_name} WHERE RECID = ?"
         
         try:
-            self.db.ttsbegin()
-            self.db.executeCommand(query, (self._get_field_instance('RECID').value,))
-            self.db.ttscommit()
+            controller.db.ttsbegin()
+            controller.db.executeCommand(query, (controller._get_field_instance('RECID').value,))
+            controller.db.ttscommit()
         except Exception as error:
-            self.db.ttsabort()
+            controller.db.ttsabort()
             raise Exception(f"Erro ao excluir registro: {error}")
         
-        self.clear()
-        if hasattr(self, 'RECID'):
-            self._get_field_instance('RECID').value = None
+        controller.clear()
+        if hasattr(controller, 'RECID'):
+            controller._get_field_instance('RECID').value = None
         
         return True
     
-    def delete_from(self, where: Optional[Union[FieldCondition, BinaryExpression]] = None) -> int:
+    def delete_from(controller, where: Optional[Union[FieldCondition, BinaryExpression]] = None) -> int:
         """
         Deleta múltiplos registros em massa
         Args:
@@ -656,11 +632,11 @@ class DeleteManager:
         Returns:
             int: Número de registros deletados
         """
-        validate = self.validate_fields()
+        validate = controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
         
-        query = f"DELETE FROM {self.table_name}"
+        query = f"DELETE FROM {controller.table_name}"
         values = []
         
         if where:
@@ -671,13 +647,13 @@ class DeleteManager:
             raise Exception("DELETE sem WHERE não é permitido. Use where=True explicitamente se desejar deletar tudo.")
         
         try:
-            self.db.ttsbegin()
-            cursor = self.db.executeCommand(query, tuple(values))
-            affected_rows = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
-            self.db.ttscommit()
+            controller.db.ttsbegin()
+            cursor = controller.db.executeCommand(query, tuple(values))
+            affected_rows = cursor.rowcount if hasattr(controller, 'rowcount') else 0
+            controller.db.ttscommit()
             return affected_rows
         except Exception as error:
-            self.db.ttsabort()
+            controller.db.ttsabort()
             raise Exception(f"Erro ao deletar registros em massa: {error}")
 
 class TableController():
@@ -721,10 +697,7 @@ class TableController():
         self.Indexes:     Optional[List[str]]            = None
         self.ForeignKeys: Optional[List[Dict[str, Any]]] = None
 
-        self.__select_manager = SelectManager(self)
-        self.__insert_manager = InsertManager(self)
-        self.__update_manager = UpdateManager(self)
-        self.__delete_manager = DeleteManager(self)        
+        self.__select_manager = SelectManager(self)        
 
     def __getattribute__(self, name: str):
         '''
@@ -797,17 +770,29 @@ class TableController():
                 return
         object.__setattr__(self, name, value)    
 
-    @property
-    def insert(self):
-        return self.__insert_manager.__get__(self)
+    def insert(self) -> bool:
+        """Insere um novo registro na tabela"""
+        return InsertManager.insert(self)
+    
+    def insert_recordset(self, columns: List[str], source_data: List[tuple]) -> int:
+        """Insere múltiplos registros em massa"""
+        return InsertManager.insert_recordset(self, columns, source_data)
 
-    @property
-    def update(self):
-        return self.__update_manager.__get__(self)
+    def update(self) -> bool:
+        """Atualiza um registro existente na tabela"""
+        return UpdateManager.update(self)
+    
+    def update_recordset(self, where: Optional[Union[FieldCondition, BinaryExpression]] = None, **fields) -> int:
+        """Atualiza múltiplos registros em massa"""
+        return UpdateManager.update_recordset(self, where, **fields)
 
-    @property
-    def delete(self):
-        return self.__delete_manager.__get__(self)
+    def delete(self) -> bool:
+        """Exclui um registro da tabela"""
+        return DeleteManager.delete(self)
+    
+    def delete_from(self, where: Optional[Union[FieldCondition, BinaryExpression]] = None) -> int:
+        """Deleta múltiplos registros em massa"""
+        return DeleteManager.delete_from(self, where)
     
     def select(self) -> "SelectManager":
         return self.__select_manager.__get__(self)
