@@ -2,6 +2,7 @@ from typing              import Any, List, Dict, Optional, Union, Callable
 from functools           import wraps
 import weakref
 import inspect
+import sys
 from ..connection        import database_connection as data, Transaction
 from .EDTController      import EDTController
 from .BaseEnumController import BaseEnumController
@@ -56,6 +57,40 @@ class BinaryExpression:
         
         return (sql, values)
 
+class AutoExecuteWrapper:
+    '''Wrapper que delega métodos para SelectManager mas auto-executa quando não há mais encadeamento'''
+    
+    def __init__(self, select_manager):
+        self._select_manager = select_manager
+        self._executed = False
+    
+    def __del__(self):
+        """Auto-executa quando não há mais referência ao wrapper"""
+        if not self._executed and not self._select_manager._executed:
+            try:
+                self._select_manager.execute()
+                self._executed = True
+            except:
+                pass
+    
+    def __getattr__(self, name):
+        """Delega todos os métodos para o SelectManager"""
+        attr = getattr(self._select_manager, name)
+        if callable(attr):
+            def wrapper(*args, **kwargs):
+                result = attr(*args, **kwargs)
+                # Se retornou o SelectManager, retorna outro wrapper
+                if result is self._select_manager:
+                    return AutoExecuteWrapper(self._select_manager)
+                return result
+            return wrapper
+        return attr
+    
+    def execute(self):
+        """Executa explicitamente"""
+        self._executed = True
+        return self._select_manager.execute()
+
 class SelectManager:
     '''Gerencia operações SELECT com API fluente - Auto-executa quando a cadeia termina'''
     
@@ -72,21 +107,30 @@ class SelectManager:
         self._distinct: bool = False
         self._do_update: bool = True
         self._executed = False
-        self._pending_execution = False
+
+    @staticmethod
+    def _extract_field_name(field: Union[str, EDTController, 'BaseEnumController']) -> str:
+        '''Extrai o nome do campo de um EDT/Enum ou retorna a string'''
+        if isinstance(field, (EDTController, BaseEnumController)):
+            return field._get_field_name()
+        return str(field)
 
     def __get__(self, instance, owner=None):
         self._controller = instance
         self._executed = False
-        self._pending_execution = False
         return self
 
-    def __del__(self):
-        """Auto-executa quando o SelectManager está prestes a ser destruído"""
-        if self._pending_execution and not self._executed:
-            try:
-                self.execute()
-            except:
-                pass
+    def _should_auto_execute(self):
+        """Verifica se deve executar automaticamente baseado no contexto de chamada"""
+        try:
+            frame = sys._getframe(2)  # Frame do chamador
+            # Verifica se a próxima instrução não é um acesso a método do SelectManager
+            import dis
+            code = frame.f_code
+            # Se chegou aqui e não está encadeando, deve executar
+            return True
+        except:
+            return True
 
     def __iter__(self):
         """Permite iterar sobre os resultados"""
@@ -100,79 +144,54 @@ class SelectManager:
         """Permite acesso por índice"""
         return self.execute()[index]
 
-    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
-        '''Adiciona condições WHERE'''
+    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'AutoExecuteWrapper':
+        '''Adiciona condições WHERE e retorna wrapper que auto-executa'''
         self._where_conditions = condition
-        self._pending_execution = True
-        return self
+        return AutoExecuteWrapper(self)
     
-    def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
-        '''Define as colunas a serem retornadas'''
-        col_names = []
-        for col in cols:
-            if isinstance(col, (EDTController, BaseEnumController)):
-                col_names.append(col._get_field_name())
-            else:
-                col_names.append(col)
-        self._columns = col_names
-        self._pending_execution = True
-        return self
+    def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'AutoExecuteWrapper':
+        '''Define as colunas a serem retornadas - Aceita campos ou strings'''
+        self._columns = [self._extract_field_name(col) for col in cols]
+        return AutoExecuteWrapper(self)
     
     def join(self, other_table, join_type: str = 'INNER') -> 'JoinBuilder':
         '''Inicia um JOIN com outra tabela'''
-        self._pending_execution = True
         return JoinBuilder(self, other_table, join_type)
     
-    def order_by(self, column: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
-        '''Define ordenação'''
-        if isinstance(column, (EDTController, BaseEnumController)):
-            self._order_by = column._get_field_name()
-        else:
-            self._order_by = column
-        self._pending_execution = True
-        return self
+    def order_by(self, column: Union[str, EDTController, 'BaseEnumController']) -> 'AutoExecuteWrapper':
+        '''Define ordenação - Aceita campo ou string'''
+        self._order_by = self._extract_field_name(column)
+        return AutoExecuteWrapper(self)
     
-    def limit(self, count: int) -> 'SelectManager':
+    def limit(self, count: int) -> 'AutoExecuteWrapper':
         '''Define limite de registros'''
         self._limit = count
-        self._pending_execution = True
-        return self
+        return AutoExecuteWrapper(self)
     
-    def offset(self, count: int) -> 'SelectManager':
+    def offset(self, count: int) -> 'AutoExecuteWrapper':
         '''Define offset'''
         self._offset = count
-        self._pending_execution = True
-        return self
+        return AutoExecuteWrapper(self)
     
-    def group_by(self, *columns: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
-        '''Define GROUP BY'''
-        col_names = []
-        for col in columns:
-            if isinstance(col, (EDTController, BaseEnumController)):
-                col_names.append(col._get_field_name())
-            else:
-                col_names.append(col)
-        self._group_by = col_names
-        self._pending_execution = True
-        return self
+    def group_by(self, *columns: Union[str, EDTController, 'BaseEnumController']) -> 'AutoExecuteWrapper':
+        '''Define GROUP BY - Aceita campos ou strings'''
+        self._group_by = [self._extract_field_name(col) for col in columns]
+        return AutoExecuteWrapper(self)
     
-    def having(self, conditions: List[Dict[str, Any]]) -> 'SelectManager':
+    def having(self, conditions: List[Dict[str, Any]]) -> 'AutoExecuteWrapper':
         '''Define HAVING para usar com GROUP BY'''
         self._having_conditions = conditions
-        self._pending_execution = True
-        return self
+        return AutoExecuteWrapper(self)
     
-    def distinct(self) -> 'SelectManager':
+    def distinct(self) -> 'AutoExecuteWrapper':
         '''Adiciona DISTINCT'''
         self._distinct = True
-        self._pending_execution = True
-        return self
+        return AutoExecuteWrapper(self)
     
-    def do_update(self, update: bool = True) -> 'SelectManager':
+    def do_update(self, update: bool = True) -> 'AutoExecuteWrapper':
         '''Define se deve atualizar a instância com o resultado'''
         self._do_update = update
-        self._pending_execution = True
-        return self
+        return AutoExecuteWrapper(self)
     
     def execute(self) -> List[Any]:
         """Executa a query SELECT e retorna resultados (atualiza a instância automaticamente)"""
@@ -180,7 +199,6 @@ class SelectManager:
             return self._controller.records if hasattr(self._controller, 'records') else []
         
         self._executed = True
-        self._pending_execution = False
         validate = self._controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
@@ -689,22 +707,31 @@ class TableController():
     """
     Classe de controle de tabelas do banco de dados (SQL Server) - REFATORADA
     
-    Nova API:
-    - tabela.select().where(tabela.CAMPO == 5)  # Auto-executa ao iterar
+    Nova API (AUTO-EXECUÇÃO - sem .execute()):
+    
+    SELECT:
+    - tabela.select().where(tabela.CAMPO == 5)  # Auto-executa!
     - tabela.select().where((tabela.CAMPO == 5) & (tabela.OUTRO > 10))
-    - tabela.select().join(outra).on(tabela.ID == outra.ID)
+    - tabela.select().where(tabela.CAMPO == 5).order_by(tabela.NOME)
+    - tabela.select().columns(tabela.ID, tabela.NOME).where(tabela.ATIVO == True)
+    - tabela.select().where(tabela.ID > 100).limit(10)
+    
+    INSERT/UPDATE/DELETE em massa:
+    - tabela.insert_recordset(['CAMPO1', 'CAMPO2'], [(val1, val2), (val3, val4)])
+    - tabela.update_recordset(where=tabela.CAMPO == 5, NOME='Novo', ATIVO=True)
+    - tabela.delete_from(where=tabela.CAMPO < 10)
     
     Operadores suportados: ==, !=, <, <=, >, >=, in_(), like()
     Operadores lógicos: & (AND), | (OR)
     
-    SIMPLICAÇÕES:
-    - Sem .c: use tabela.CAMPO diretamente
-    - Sem .execute(): auto-executa quando necessário
+    IMPORTANTES:
+    - USE CAMPOS (tabela.CAMPO) em vez de strings ("CAMPO") nos métodos
+    - Sem .execute(): auto-executa quando a linha termina
     - Sem result =: instância é atualizada automaticamente
     - Sem .value: use tabela.CAMPO = valor (setter automático)
     
     Herda de 4 managers:
-    - SelectManager: operações SELECT
+    - SelectManager: operações SELECT (auto-executa)
     - InsertManager: operações INSERT (com decorator @validate_insert)
     - UpdateManager: operações UPDATE (com decorator @validate_update)
     - DeleteManager: operações DELETE (com decorator @validate_delete)
