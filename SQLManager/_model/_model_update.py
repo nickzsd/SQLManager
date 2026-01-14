@@ -77,6 +77,8 @@ class DataType(BaseEnumController.Enum):
     Bytes    : Self = ("bytes",     "Tipo de dado Bytes")
     Function : Self = ("function",  "Tipo de dado Função")
     Class    : Self = ("type",      "Tipo de dado Classe")
+    Date     : Self = ("date",      "Tipo de dado Data (YYYY-MM-DD)")
+    DateTime : Self = ("datetime",  "Tipo de dado Data/Hora (YYYY-MM-DD HH:MM:SS)")
     Undefined: Self = ("undefined", "Tipo de dado Indefinido")
 '''
     with open(datatype_file, 'w', encoding='utf-8') as f:
