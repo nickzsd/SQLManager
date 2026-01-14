@@ -594,6 +594,7 @@ DB_SERVER=localhost
 DB_DATABASE=MeuBanco
 DB_USER=admin
 DB_PASSWORD=senha123
+DB_DRIVER="versão ODBC"
 ```
 
 ### Configuração Programática

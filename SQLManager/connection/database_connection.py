@@ -139,6 +139,7 @@ class database_connection (_TTS_Manager, _Consult_Manager):
                 _Database:  str = None,
                 _User:      str = None,
                 _Password:  str = None,
+                _Driver:    str = "ODBC Driver 17 for SQL Server",
                 _pool_size: int = 5, 
                 _timeout:   int = 30):
         """
@@ -159,17 +160,17 @@ class database_connection (_TTS_Manager, _Consult_Manager):
         """
         if CoreConfig.is_configured():
             config   = CoreConfig.get_db_config()
-            server   = _Server or config['server']
+            server   = _Server   or config['server']
             database = _Database or config['database']
-            user     = _User or config['user']
+            user     = _User     or config['user']
             password = _Password or config['password']
             driver   = config['driver']
         else:
-            server   = _Server or os.getenv('DB_SERVER')
+            server   = _Server   or os.getenv('DB_SERVER')
             database = _Database or os.getenv('DB_DATABASE')
-            user     = _User or os.getenv('DB_USER')
+            user     = _User     or os.getenv('DB_USER')
             password = _Password or os.getenv('DB_PASSWORD')
-            driver   = "ODBC Driver 18 for SQL Server"
+            driver   = _Driver   or os.getenv('DB_DRIVER', 'ODBC Driver 17 for SQL Server')
         
         self.connection_string = (
             f"DRIVER={{{driver}}};"

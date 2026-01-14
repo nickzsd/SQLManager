@@ -52,7 +52,8 @@ if not CoreConfig.is_configured():
         db_server=os.getenv('DB_SERVER'),
         db_database=os.getenv('DB_DATABASE'),
         db_user=os.getenv('DB_USER'),
-        db_password=os.getenv('DB_PASSWORD')
+        db_password=os.getenv('DB_PASSWORD'),
+        db_driver=os.getenv('DB_DRIVER', 'ODBC Driver 17 for SQL Server')
     )
 
 def ensure_datatype_enum(enum_path):
