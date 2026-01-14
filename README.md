@@ -503,6 +503,7 @@ except ValueError as e:
 'onlyNumbers'   # Apenas dígitos
 'onlyLetters'   # Apenas letras
 'date'          # DD/MM/YYYY ou DD-MM-YYYY
+'datetime'      # DD/MM/YYYY ou DD-MM-YYYY (opcionalmente com hora: HH:MM ou HH:MM:SS)
 'number'        # Telefone brasileiro
 'password'      # Mínimo 8 chars, letras e números
 ```
