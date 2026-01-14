@@ -158,18 +158,18 @@ class database_connection (_TTS_Manager, _Consult_Manager):
             3. Variáveis de ambiente (.env)
         """
         if CoreConfig.is_configured():
-            config = CoreConfig.get_db_config()
-            server = _Server or config['server']
+            config   = CoreConfig.get_db_config()
+            server   = _Server or config['server']
             database = _Database or config['database']
-            user = _User or config['user']
+            user     = _User or config['user']
             password = _Password or config['password']
-            driver = config['driver']
+            driver   = config['driver']
         else:
-            server = _Server or os.getenv('DB_SERVER')
+            server   = _Server or os.getenv('DB_SERVER')
             database = _Database or os.getenv('DB_DATABASE')
-            user = _User or os.getenv('DB_USER')
+            user     = _User or os.getenv('DB_USER')
             password = _Password or os.getenv('DB_PASSWORD')
-            driver = "ODBC Driver 18 for SQL Server"
+            driver   = "ODBC Driver 18 for SQL Server"
         
         self.connection_string = (
             f"DRIVER={{{driver}}};"
