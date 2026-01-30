@@ -93,6 +93,18 @@ class EDTController(EDT_Utils, OperationManager):
 
     def __repr__(self) -> str:
         return str(self._value) if self._value is not None else ""
+    
+    def __int__(self) -> int:
+        '''Permite conversão para int'''
+        return int(self._value) if self._value is not None else 0
+    
+    def __float__(self) -> float:
+        '''Permite conversão para float'''
+        return float(self._value) if self._value is not None else 0.0
+    
+    def __bool__(self) -> bool:
+        '''Permite usar em if/while'''
+        return bool(self._value) if self._value is not None else False
 
     @property
     def value(self) -> Any:
@@ -111,6 +123,8 @@ class EDTController(EDT_Utils, OperationManager):
         return cls("plaintxt")  # ou outro valor padrão
 
     def set_value(self, edt_value: Any, limit: Optional[int] = None) -> Any:
+        from datetime import datetime, date, time
+        
         if edt_value is None or edt_value == "":
             return edt_value                                
         
@@ -125,13 +139,20 @@ class EDTController(EDT_Utils, OperationManager):
                         f"e atualmente é {SystemController.custom_text(type(edt_value).__name__, 'red', False, True)}\n"
                     )
         
-        # Valida regex (sempre, independente do tipo)
-        if not self.regex.is_valid(edt_value):
+        # Pula validação de regex para tipos nativos datetime/date/time do Python
+        skip_regex_validation = isinstance(edt_value, (datetime, date, time))
+        
+        # Valida regex apenas se não for um tipo datetime nativo
+        if not skip_regex_validation and not self.regex.is_valid(edt_value):
             raise ValueError(
                 f"\nValor {SystemController.custom_text(edt_value, 'blue')} "
                 f"não corresponde ao formato esperado.\nFormato esperado: "
                 f"{SystemController.custom_text(self.regex.regexId, 'red', False, True)}\n"
             )
+        
+        # Converte string para datetime/date se o regex for de data
+        if isinstance(edt_value, str) and not skip_regex_validation:
+            edt_value = self._convert_to_datetime(edt_value)
         
         # Valida limite se definido
         if limit is not None and len(str(edt_value)) > limit:
@@ -142,6 +163,45 @@ class EDTController(EDT_Utils, OperationManager):
         
         self._value = edt_value
         return edt_value          
+
+    def _convert_to_datetime(self, value: str) -> Any:
+        """Converte string para datetime/date se o regex_id for relacionado a datas"""
+        from datetime import datetime
+        
+        # Se não for um regex de data, retorna o valor original
+        if self.regex.regexId not in ["date", "datetime"]:
+            return value
+        
+        # Remove separadores comuns
+        cleaned = value.replace("/", "").replace("-", "").replace("\\", "")
+        
+        try:
+            if self.regex.regexId == "datetime":
+                # Tenta parsear datetime com hora
+                if " " in value:
+                    # Com hora
+                    date_part, time_part = value.split(None, 1)
+                    date_cleaned = date_part.replace("/", "").replace("-", "").replace("\\", "")
+                    time_cleaned = time_part.replace(":", "")
+                    
+                    # Formatos: ddmmyyyy HHMM ou ddmmyyyy HHMMSS
+                    if len(time_cleaned) == 4:
+                        return datetime.strptime(date_cleaned + time_cleaned, "%d%m%Y%H%M")
+                    elif len(time_cleaned) == 6:
+                        return datetime.strptime(date_cleaned + time_cleaned, "%d%m%Y%H%M%S")
+                else:
+                    # Sem hora, apenas data
+                    return datetime.strptime(cleaned, "%d%m%Y")
+            
+            elif self.regex.regexId == "date":
+                # Apenas data (dd/mm/yyyy ou ddmmyyyy)
+                return datetime.strptime(cleaned, "%d%m%Y").date()
+        
+        except ValueError:
+            # Se falhar a conversão, retorna o valor original como string
+            pass
+        
+        return value
 
     def value_of(self) -> Any:
         return self._value

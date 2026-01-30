@@ -3,6 +3,8 @@ from functools           import wraps
 import weakref
 import inspect
 import sys
+from concurrent.futures  import ThreadPoolExecutor, as_completed
+from threading           import Lock
 from ..connection        import database_connection as data, Transaction
 from .EDTController      import EDTController
 from .BaseEnumController import BaseEnumController
@@ -10,18 +12,48 @@ from .BaseEnumController import BaseEnumController
 class FieldCondition:
     '''
     Representa uma condição de campo com operador para construção de WHERE clauses
+    Também suporta uso em if/while através de __bool__
     '''
-    def __init__(self, field_name: str, operator: str, value: Any, table_alias: Optional[str] = None):
+    def __init__(self, field_name: str, operator: str, value: Any, table_alias: Optional[str] = None, left_value: Any = None):
         self.field_name = field_name
         self.operator = operator
         self.value = value
         self.table_alias = table_alias
+        self.left_value = left_value  # Valor do campo (lado esquerdo da comparação)
     
     def __and__(self, other: 'FieldCondition') -> 'BinaryExpression':
         return BinaryExpression(self, 'AND', other)
     
     def __or__(self, other: 'FieldCondition') -> 'BinaryExpression':
         return BinaryExpression(self, 'OR', other)
+    
+    def __bool__(self) -> bool:
+        '''Permite usar em if/while - executa comparação Python real'''
+        if self.left_value is None:
+            return True  # Se não temos valor do campo, assume True
+        
+        left = self.left_value
+        right = self.value
+        
+        if self.operator == '=':
+            return left == right
+        elif self.operator == '!=':
+            return left != right
+        elif self.operator == '<':
+            return left < right
+        elif self.operator == '<=':
+            return left <= right
+        elif self.operator == '>':
+            return left > right
+        elif self.operator == '>=':
+            return left >= right
+        elif self.operator == 'IN':
+            return left in right
+        elif self.operator == 'LIKE':
+            import re
+            pattern = str(right).replace('%', '.*').replace('_', '.')
+            return bool(re.match(pattern, str(left)))
+        return True
     
     def to_sql(self) -> tuple:
         '''Converte a condição para SQL'''
@@ -63,6 +95,7 @@ class AutoExecuteWrapper:
     def __init__(self, select_manager):
         self._select_manager = select_manager
         self._executed = False
+        self._result_cache = None
     
     def __del__(self):
         """Auto-executa quando não há mais referência ao wrapper"""
@@ -79,17 +112,38 @@ class AutoExecuteWrapper:
         if callable(attr):
             def wrapper(*args, **kwargs):
                 result = attr(*args, **kwargs)
-                # Se retornou o SelectManager, retorna outro wrapper
                 if result is self._select_manager:
                     return AutoExecuteWrapper(self._select_manager)
                 return result
             return wrapper
         return attr
     
+    def _ensure_executed(self):
+        """Garante que a query foi executada e retorna o resultado"""
+        if not self._executed:
+            self._result_cache = self._select_manager.execute()
+            self._executed = True
+        return self._result_cache
+    
     def execute(self):
         """Executa explicitamente"""
-        self._executed = True
-        return self._select_manager.execute()
+        return self._ensure_executed()
+    
+    def __len__(self):
+        """Permite usar len() - auto-executa se necessário"""
+        return len(self._ensure_executed())
+    
+    def __bool__(self):
+        """Permite usar em contextos booleanos - auto-executa se necessário"""
+        return bool(self._ensure_executed())
+    
+    def __iter__(self):
+        """Permite iterar - auto-executa se necessário"""
+        return iter(self._ensure_executed())
+    
+    def __getitem__(self, index):
+        """Permite acesso por índice - auto-executa se necessário"""
+        return self._ensure_executed()[index]
 
 class SelectManager:
     '''Gerencia operações SELECT com API fluente - Auto-executa quando a cadeia termina'''
@@ -106,7 +160,7 @@ class SelectManager:
         self._having_conditions: Optional[List[Dict[str, Any]]] = None
         self._distinct: bool = False
         self._do_update: bool = True
-        self._executed = False
+        self._executed = False        
 
     @staticmethod
     def _extract_field_name(field: Union[str, EDTController, 'BaseEnumController']) -> str:
@@ -123,11 +177,9 @@ class SelectManager:
     def _should_auto_execute(self):
         """Verifica se deve executar automaticamente baseado no contexto de chamada"""
         try:
-            frame = sys._getframe(2)  # Frame do chamador
-            # Verifica se a próxima instrução não é um acesso a método do SelectManager
+            frame = sys._getframe(2)  
             import dis
             code = frame.f_code
-            # Se chegou aqui e não está encadeando, deve executar
             return True
         except:
             return True
@@ -287,17 +339,23 @@ class SelectManager:
         else:
             results = self._process_simple_results(rows, table_columns)
         
-        if self._do_update and results:
-            if self._joins:
-                self._controller.records = [r[0] for r in results] if results and isinstance(results[0], list) else results
-                if results and isinstance(results[0], list):
-                    self._controller.set_current(results[0][0])
-                elif results:
+        if self._do_update:
+            if results:
+                if self._joins:
+                    self._controller.records = [r[0] for r in results] if results and isinstance(results[0], list) else results
+                    if results and isinstance(results[0], list):
+                        self._controller.set_current(results[0][0])
+                    elif results:
+                        self._controller.set_current(results[0])
+                else:
+                    self._controller.records = results
                     self._controller.set_current(results[0])
             else:
-                self._controller.records = results
-                self._controller.set_current(results[0])
+                # Sem resultados: limpa os campos e registros
+                self._controller.clear()
         
+        self.records = results
+
         return results
     
     def _process_aggregate_results(self, rows, columns, table_columns):
@@ -374,7 +432,11 @@ class SelectManager:
         """Processa resultados simples sem JOINs"""
         result = [dict(zip([col[0] for col in table_columns], row)) for row in rows]
         return result
-    
+
+    def records(self) -> List[Any]:
+        """Retorna os registros obtidos (após execução)"""
+        return self._controller.records if hasattr(self._controller, 'records') else []
+
 class JoinBuilder:
     """
     Builder para construir JOINs de forma fluente
@@ -408,6 +470,224 @@ class JoinBuilder:
         
         return self.select_manager
 
+class InsertRecordsetWrapper:
+    """Wrapper que permite uso com ou sem .where()"""
+    def __init__(self, manager):
+        self._manager = manager
+        self._result = None
+        
+    def where(self, key_column: Union[str, EDTController, Any]) -> int:
+        """Executa com filtro WHERE"""
+        return self._manager.where(key_column)
+    
+    def __del__(self):
+        """Auto-executa se não chamou .where()"""
+        if self._result is None and not self._manager._executed:
+            try:
+                self._result = self._manager._execute_insert()
+            except:
+                pass  
+
+class InsertRecordsetManager:
+    """
+    Gerencia operações INSERT em massa com suporte a WHERE (filtro condicional)
+    """
+    def __init__(self, controller, source_data: Union[List[tuple], List[Dict], List[Any]], columns: Optional[List[str]] = None):
+        self._controller = controller
+        self._raw_data = source_data
+        self._columns = columns
+        self._source_data = None
+        self._where_condition = None
+        self._key_column = None
+        self._executed = False
+        
+        self._process_data()
+    
+    def _process_data(self):
+        """Processa os dados de entrada e extrai colunas e tuplas"""
+        if not self._raw_data:
+            raise Exception("Dados vazios fornecidos para insert_recordset")
+        
+        first_item = self._raw_data[0]
+        
+        if self._columns:
+            self._source_data = self._raw_data
+            return
+        
+        if isinstance(first_item, dict): #Dict
+            # Primeiro coleta todas as colunas
+            all_cols = list(first_item.keys())
+            
+            # Filtra colunas onde TODOS os valores são None (permite defaults do banco)
+            self._columns = []
+            for col in all_cols:
+                has_value = any(item.get(col) is not None for item in self._raw_data)
+                if has_value:
+                    self._columns.append(col)
+            
+            # Cria tuplas apenas com as colunas que têm valores
+            self._source_data = []
+            for item in self._raw_data:
+                row = tuple(item.get(col) for col in self._columns)
+                self._source_data.append(row)
+
+        elif hasattr(first_item, '__dataclass_fields__'): #dataclass
+            # Primeiro coleta todas as colunas
+            all_cols = list(first_item.__dataclass_fields__.keys())
+            
+            # Filtra colunas onde TODOS os valores são None (permite defaults do banco)
+            self._columns = []
+            for col in all_cols:
+                has_value = any(getattr(item, col, None) is not None for item in self._raw_data)
+                if has_value:
+                    self._columns.append(col)
+            
+            # Cria tuplas apenas com as colunas que têm valores
+            self._source_data = []
+            for item in self._raw_data:
+                row = tuple(getattr(item, col) for col in self._columns)
+                self._source_data.append(row)
+
+        elif hasattr(first_item, '__dict__'): #Objeto comum
+
+            self._columns = list(first_item.__dict__.keys())
+            self._source_data = [tuple(getattr(item, col) for col in self._columns) for item in self._raw_data]
+        else:
+            raise Exception("Formato de dados não suportado. Use dict, dataclass ou tuplas com colunas definidas")
+    
+    def where(self, key_column: Union[str, EDTController, Any]) -> int:
+        """
+        Define a coluna de chave para comparação e executa (insere apenas se não existir)
+        Args:
+            key_column: Nome da coluna como STRING (ex: 'ITEMID')
+        Returns:
+            int: Número de registros inseridos
+        """        
+        # Sempre converter para string
+        if isinstance(key_column, str):
+            self._key_column = key_column.upper()
+        else:
+            found = False
+            for attr_name in self._controller.__dict__.keys():
+                if attr_name.startswith('_'):
+                    continue
+                try:
+                    attr = getattr(self._controller, attr_name)
+                    if attr is key_column:
+                        self._key_column = attr_name.upper()
+                        found = True
+                        break
+                except:
+                    continue
+            
+            if not found:
+                raise Exception(f"Use string no .where(): .where('ITEMID') ao invés de .where(ProductTable.ITEMID)")
+        
+        if not self._key_column:
+            raise Exception("Coluna não foi definida. Use .where('ITEMID')")
+            
+        if self._key_column not in [col.upper() for col in self._columns]:
+            raise Exception(f"Coluna '{self._key_column}' não está na lista de colunas fornecidas: {self._columns}")
+                
+        self._executed = True
+        return self._execute_insert()
+    
+    def _execute_insert(self) -> int:
+        """
+        Executa a inserção em massa, filtrando registros existentes se WHERE foi definido
+        Returns:
+            int: Número de registros inseridos
+        """
+        validate = self._controller.validate_fields()
+        if not validate['valid']:
+            raise Exception(validate['error'])
+        
+        if not self._columns or not self._source_data:
+            raise Exception("Colunas e dados são obrigatórios para insert_recordset")
+        
+        table_columns = self._controller.get_table_columns()
+        col_names = [col[0] for col in table_columns]
+        
+        for col in self._columns:
+            if col.upper() not in col_names:
+                raise Exception(f"Campo '{col}' não existe na tabela {self._controller.table_name}")
+        
+        expected_len = len(self._columns)
+        for idx, row in enumerate(self._source_data):
+            if len(row) != expected_len:
+                raise Exception(f"Linha {idx} tem {len(row)} valores, esperado {expected_len}")
+        
+        try:
+            self._controller.db.ttsbegin()
+            
+            # Se WHERE foi definido, usa CTE com NOT EXISTS
+            if self._key_column:
+                affected_rows = self._insert_with_not_exists()
+            else:
+                # Inserção normal sem filtro
+                affected_rows = self._insert_all()
+            
+            self._controller.db.ttscommit()
+            return affected_rows
+        except Exception as error:
+            self._controller.db.ttsabort()
+            raise Exception(f"Erro ao inserir registros em massa: {error}")
+    
+    def _insert_all(self) -> int:
+        """Insere todos os registros sem filtro usando bulk insert otimizado"""
+        placeholders = ', '.join(['?'] * len(self._columns))
+        query = f"INSERT INTO {self._controller.table_name} ({', '.join(self._columns)}) VALUES ({placeholders})"
+        
+        cursor = self._controller.db.connection.cursor()
+        cursor.fast_executemany = True
+        cursor.executemany(query, self._source_data)
+        total_inserted = cursor.rowcount if hasattr(cursor, 'rowcount') else len(self._source_data)
+        cursor.close()
+        
+        return total_inserted
+    
+    def _insert_with_not_exists(self) -> int:
+        """Insere apenas registros que NÃO existem usando estratégia otimizada em lotes"""
+        key_idx = [col.upper() for col in self._columns].index(self._key_column)
+        input_keys = [row[key_idx] for row in self._source_data]
+        batch_size = 5000  # Aumente conforme o banco suportar
+        existing_keys = set()
+        for i in range(0, len(input_keys), batch_size):
+            batch_keys = input_keys[i:i + batch_size]
+            placeholders = ', '.join(['?'] * len(batch_keys))
+            check_query = f"SELECT {self._key_column} FROM {self._controller.table_name} WHERE {self._key_column} IN ({placeholders})"
+            existing_result = self._controller.db.doQuery(check_query, tuple(batch_keys))
+            if existing_result:
+                existing_keys.update(row[0] for row in existing_result)
+        new_data = [row for row in self._source_data if row[key_idx] not in existing_keys]
+        if not new_data:
+            return 0
+        placeholders = ', '.join(['?'] * len(self._columns))
+        query = f"INSERT INTO {self._controller.table_name} ({', '.join(self._columns)}) VALUES ({placeholders})"
+        cursor = self._controller.db.connection.cursor()
+        cursor.fast_executemany = True
+        cursor.executemany(query, new_data)
+        total_inserted = cursor.rowcount if hasattr(cursor, 'rowcount') else len(new_data)
+        cursor.close()
+        return total_inserted
+    
+    def __await__(self):
+        """Permite uso com await se necessário"""
+        async def _async_exec():
+            return self._execute_insert()
+        return _async_exec().__await__()
+    
+    def __int__(self):
+        """Permite conversão direta para int (auto-executa se não executou ainda)"""
+        if not self._executed:
+            self._executed = True
+            return self._execute_insert()
+        return 0
+    
+    def __index__(self):
+        """Permite uso em contextos que esperam int"""
+        return self.__int__()
+
 class InsertManager:
     """
     Gerencia operações INSERT com validação automática
@@ -436,6 +716,9 @@ class InsertManager:
         Returns:
             bool: True se inserido com sucesso
         """
+        # Obter colunas com DEFAULT (usando cache)
+        columns_with_default = controller.get_columns_with_defaults()
+        
         fields = []
         values = []
         
@@ -443,6 +726,11 @@ class InsertManager:
             attr = controller._get_field_instance(key)
             if not (isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum))) or key == 'RECID':
                 continue
+            
+            # Pular campos com DEFAULT que estão None (permite DB aplicar default)
+            if key in columns_with_default and attr.value is None:
+                continue
+                
             fields.append(key)
             values.append(attr.value)
         
@@ -467,49 +755,17 @@ class InsertManager:
             controller.db.ttsabort()
             raise Exception(f"Erro ao inserir registro: {error}")
     
-    def insert_recordset(controller, columns: List[str], source_data: List[tuple]) -> int:
+    def insert_recordset(controller, source_data: Union[List[tuple], List[Dict], List[Any]], columns: Optional[List[str]] = None) -> InsertRecordsetWrapper:
         """
-        Insere múltiplos registros em massa
+        Insere múltiplos registros em massa (com suporte a WHERE condicional)
         Args:
-            columns: Lista de colunas
-            source_data: Lista de tuplas com valores
+            source_data: Lista de dicts, dataclasses ou tuplas
+            columns: Lista de colunas (opcional, extraído automaticamente de dicts/dataclasses)
         Returns:
-            int: Número de registros inseridos
+            InsertRecordsetWrapper: Use .where() para filtrar, ou deixe auto-executar
         """
-        validate = controller.validate_fields()
-        if not validate['valid']:
-            raise Exception(validate['error'])
-        
-        if not columns or not source_data:
-            raise Exception("Colunas e dados são obrigatórios para insert_recordset")
-        
-        table_columns = controller.get_table_columns()
-        col_names = [col[0] for col in table_columns]
-        
-        for col in columns:
-            if col.upper() not in col_names:
-                raise Exception(f"Campo '{col}' não existe na tabela {controller.table_name}")
-        
-        expected_len = len(columns)
-        for idx, row in enumerate(source_data):
-            if len(row) != expected_len:
-                raise Exception(f"Linha {idx} tem {len(row)} valores, esperado {expected_len}")
-        
-        placeholders = ', '.join(['?'] * len(columns))
-        values_clause = ', '.join([f"({placeholders})" for _ in source_data])
-        query = f"INSERT INTO {controller.table_name} ({', '.join(columns)}) VALUES {values_clause}"
-        
-        flat_values = [val for row in source_data for val in row]
-        
-        try:
-            controller.db.ttsbegin()
-            cursor = controller.db.executeCommand(query, tuple(flat_values))
-            affected_rows = cursor.rowcount if hasattr(cursor, 'rowcount') else len(source_data)
-            controller.db.ttscommit()
-            return affected_rows
-        except Exception as error:
-            controller.db.ttsabort()
-            raise Exception(f"Erro ao inserir registros em massa: {error}")
+        manager = InsertRecordsetManager(controller, source_data, columns)
+        return InsertRecordsetWrapper(manager)
 
 class UpdateManager:
     """
@@ -536,26 +792,34 @@ class UpdateManager:
         return wrapper
     
     @validate_update
-    def update(controller) -> bool:
+    def update(controller, _values) -> bool:
         """
         Atualiza um registro existente na tabela
         Returns:
             bool: True se atualizado com sucesso
         """
-        recid_instance = controller._get_field_instance('RECID')
-        record = controller.select().where(recid_instance == recid_instance.value).limit(1).do_update(False).execute()
+        recid_instance  = controller._get_field_instance('RECID')
+        record          = list(filter(lambda r: r['RECID'] == recid_instance.value, controller.records))
         
-        values = []
+        values      = []
         set_clauses = []
         
         for key in controller.__dict__:
             attr = controller._get_field_instance(key)
+
             if not (isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum))) or key == 'RECID':
                 continue
-            if record and (record[0].get(key) == attr.value or record[0].get(key) == getattr(attr, '_value', None)):
-                continue
+            
+            if record:
+                old_val = record[0].get(key)
+                new_val = _values[0].get(key)
+                
+                # print(f"Comparando campo {key}: antigo={old_val!r} novo={new_val!r}")
+                if old_val == new_val:
+                    continue
+
             set_clauses.append(f"{key} = ?")
-            values.append(attr.value)
+            values.append(new_val)
         
         if not values:
             raise Exception("Nenhum campo foi alterado para atualizar.")
@@ -624,6 +888,80 @@ class UpdateManager:
             controller.db.ttsabort()
             raise Exception(f"Erro ao atualizar registros em massa: {error}")
 
+class AutoExecuteDeleteWrapper:
+    '''Wrapper para DeleteRecordsetManager que auto-executa'''
+    
+    def __init__(self, delete_manager):
+        self._delete_manager = delete_manager
+        self._executed = False
+    
+    def __del__(self):
+        """Auto-executa quando não há mais referência"""
+        if not self._executed:
+            try:
+                self._delete_manager.execute()
+                self._executed = True
+            except:
+                pass
+    
+    def execute(self):
+        """Executa explicitamente"""
+        if not self._executed:
+            result = self._delete_manager.execute()
+            self._executed = True
+            return result
+        return self._delete_manager._result_cache
+    
+    def __int__(self):
+        """Permite conversão para int"""
+        return self.execute()
+
+class DeleteRecordsetManager:
+    '''Gerencia operações DELETE em massa com API fluente - Auto-executa quando a cadeia termina'''
+    
+    def __init__(self, table_controller):
+        self._controller = table_controller
+        self._where_conditions: Optional[Union[FieldCondition, BinaryExpression]] = None
+        self._executed = False
+        self._result_cache = None
+    
+    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'AutoExecuteDeleteWrapper':
+        '''Adiciona condições WHERE e retorna wrapper que auto-executa'''
+        self._where_conditions = condition
+        return AutoExecuteDeleteWrapper(self)
+    
+    def execute(self) -> int:
+        """Executa a operação DELETE e retorna o número de registros deletados"""
+        if self._executed:
+            return self._result_cache if self._result_cache is not None else 0
+        
+        self._executed = True
+        
+        validate = self._controller.validate_fields()
+        if not validate['valid']:
+            raise Exception(validate['error'])
+        
+        query = f"DELETE FROM {self._controller.table_name}"
+        values = []
+        
+        if self._where_conditions is None:
+            raise Exception("DELETE sem WHERE não é permitido. Use where=True explicitamente se desejar deletar tudo.")
+        
+        where_sql, where_values = self._where_conditions.to_sql()
+        query += f" WHERE {where_sql}"
+        values.extend(where_values if isinstance(where_values, list) else [where_values])        
+        
+        try:
+            self._controller.db.ttsbegin()
+            cursor = self._controller.db.executeCommand(query, tuple(values))
+            affected_rows = cursor.rowcount if hasattr(cursor, 'rowcount') else 0
+            self._controller.db.ttscommit()
+            self._result_cache = affected_rows
+            return affected_rows
+        except Exception as error:
+            self._controller.db.ttsabort()
+            raise Exception(f"Erro ao deletar registros em massa: {error}")
+
 class DeleteManager:
     """
     Gerencia operações DELETE com validação automática
@@ -671,43 +1009,18 @@ class DeleteManager:
         
         return True
     
-    def delete_from(controller, where: Optional[Union[FieldCondition, BinaryExpression]] = None) -> int:
+    def delete_from(controller) -> 'DeleteRecordsetManager':
         """
-        Deleta múltiplos registros em massa
-        Args:
-            where: Condição WHERE (usando operadores sobrecarregados)
+        Deleta múltiplos registros em massa com API fluente
+        Uso: table.delete_from().where(table.CAMPO == valor)
         Returns:
-            int: Número de registros deletados
+            DeleteRecordsetManager: Manager para construir a query de deleção
         """
-        validate = controller.validate_fields()
-        if not validate['valid']:
-            raise Exception(validate['error'])
-        
-        query = f"DELETE FROM {controller.table_name}"
-        values = []
-        
-        if where:
-            where_sql, where_values = where.to_sql()
-            query += f" WHERE {where_sql}"
-            values.extend(where_values if isinstance(where_values, list) else [where_values])
-        else:
-            raise Exception("DELETE sem WHERE não é permitido. Use where=True explicitamente se desejar deletar tudo.")
-        
-        try:
-            controller.db.ttsbegin()
-            cursor = controller.db.executeCommand(query, tuple(values))
-            affected_rows = cursor.rowcount if hasattr(controller, 'rowcount') else 0
-            controller.db.ttscommit()
-            return affected_rows
-        except Exception as error:
-            controller.db.ttsabort()
-            raise Exception(f"Erro ao deletar registros em massa: {error}")
+        return DeleteRecordsetManager(controller)
 
 class TableController():
     """
     Classe de controle de tabelas do banco de dados (SQL Server) - REFATORADA
-    
-    Nova API (AUTO-EXECUÇÃO - sem .execute()):
     
     SELECT:
     - tabela.select().where(tabela.CAMPO == 5)  # Auto-executa!
@@ -717,9 +1030,9 @@ class TableController():
     - tabela.select().where(tabela.ID > 100).limit(10)
     
     INSERT/UPDATE/DELETE em massa:
-    - tabela.insert_recordset(['CAMPO1', 'CAMPO2'], [(val1, val2), (val3, val4)])
+    - tabela.insert_recordset(['CAMPO1', 'CAMPO2'], [(val1, val2), (val3, val4)]).where('CAMPO1').execute()
     - tabela.update_recordset(where=tabela.CAMPO == 5, NOME='Novo', ATIVO=True)
-    - tabela.delete_from(where=tabela.CAMPO < 10)
+    - tabela.delete_from().where(tabela.CAMPO < 10)  # Auto-executa!
     
     Operadores suportados: ==, !=, <, <=, >, >=, in_(), like()
     Operadores lógicos: & (AND), | (OR)
@@ -736,6 +1049,10 @@ class TableController():
     - UpdateManager: operações UPDATE (com decorator @validate_update)
     - DeleteManager: operações DELETE (com decorator @validate_delete)
     """
+    
+    # Cache estático de colunas com DEFAULT por tabela
+    _defaults_cache: Dict[str, set] = {}
+    
     def __init__(self, db: Union[data, Transaction], table_name: Optional[str] = None):
         '''
         Inicializa o controlador de tabela.
@@ -759,15 +1076,15 @@ class TableController():
 
     def __getattribute__(self, name: str):
         '''
-        Intercepta acesso aos campos para comportamento inteligente:
-        - Em contexto de query/operadores: retorna instância EDT/Enum (para operadores)
-        - Em contexto normal: retorna o valor diretamente
+        Intercepta acesso aos campos:
+        - SEMPRE retorna a instância EDT/Enum para permitir operadores
+        - Para acessar valores, use .value explicitamente
         '''
         protected_attrs = {
             'db', 'table_name', 'records', 'Columns', 'Indexes', 'ForeignKeys',
             '_where_conditions', '_columns', '_joins', '_order_by', '_limit',
             '_offset', '_group_by', '_having_conditions', '_distinct', '_do_update',
-            'controller', '__class__', '__dict__'
+            'controller', '__class__', '__dict__', 'isUpdate'
         }
         
         if name in protected_attrs or name.startswith('_'):
@@ -775,33 +1092,11 @@ class TableController():
         
         attr = object.__getattribute__(self, name)
         
+        # Retorna métodos normalmente
         if callable(attr):
             return attr
         
-        if isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum)):
-            import inspect
-            try:
-                frame = inspect.currentframe()
-                if frame and frame.f_back:
-                    for _ in range(3):
-                        if not frame.f_back:
-                            break
-                        frame = frame.f_back
-                        caller_name = frame.f_code.co_name
-                        
-                        query_contexts = {
-                            'where', 'columns', 'order_by', 'group_by', 'join', 'having',
-                            '__eq__', '__ne__', '__lt__', '__le__', '__gt__', '__ge__',
-                            'in_', 'like', '_extract_value', '_get_field_name',
-                            'to_sql', 'execute'
-                        }
-                        if caller_name in query_contexts:
-                            return attr
-            except:
-                pass
-            
-            return attr.value
-        
+        # SEMPRE retorna instância EDT/Enum (permite operadores)
         return attr
   
     def __setattr__(self, name: str, value: Any):
@@ -826,22 +1121,34 @@ class TableController():
                 else:
                     attr.value = value
                 return
+        
+        # Se está criando um novo EDT/Enum, armazena o nome do campo nele
+        if isinstance(value, (EDTController, BaseEnumController)):
+            value._field_name = name
+        
         object.__setattr__(self, name, value)    
 
     def insert(self) -> bool:
         """Insere um novo registro na tabela"""
         return InsertManager.insert(self)
     
-    def insert_recordset(self, columns: List[str], source_data: List[tuple]) -> int:
-        """Insere múltiplos registros em massa"""
-        return InsertManager.insert_recordset(self, columns, source_data)
+    def insert_recordset(self, source_data: Union[List[tuple], List[Dict], List[Any]], columns: Optional[List[str]] = None) -> InsertRecordsetWrapper:
+        """Insere múltiplos registros em massa (auto-executa ou use .where())"""
+        return InsertManager.insert_recordset(self, source_data, columns)
 
     def update(self) -> bool:
         """Atualiza um registro existente na tabela"""
         if(not self.isUpdate):
             raise Exception("Registro não definido para atualização.")
         
-        ret = UpdateManager.update(self)
+        values = [{}]
+        for key in self.__dict__:
+            attr = self._get_field_instance(key)
+            if not (isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum))) or key == 'RECID':
+                continue
+            values[0][key] = attr.value
+
+        ret = UpdateManager.update(self, values)
 
         self.isUpdate = False
 
@@ -861,9 +1168,20 @@ class TableController():
         """Exclui um registro da tabela"""
         return DeleteManager.delete(self)
     
-    def delete_from(self, where: Optional[Union[FieldCondition, BinaryExpression]] = None) -> int:
-        """Deleta múltiplos registros em massa"""
-        return DeleteManager.delete_from(self, where)
+    def delete_from(self) -> 'DeleteRecordsetManager':
+        """Deleta múltiplos registros em massa com API fluente (auto-executa ou use .where())
+        
+        Uso:
+            # Auto-executa quando termina a linha
+            table.delete_from().where(table.CAMPO == valor)
+            
+            # Ou armazene e execute explicitamente
+            result = table.delete_from().where(table.CAMPO == valor).execute()
+        
+        Returns:
+            DeleteRecordsetManager: Manager para construir a query de deleção
+        """
+        return DeleteManager.delete_from(self)
     
     def select(self) -> "SelectManager":
         return self.__select_manager.__get__(self)
@@ -917,6 +1235,29 @@ class TableController():
         rows = self.db.doQuery(query, (self.table_name,))
         self.Columns = [[row[0], row[1], row[2]] for row in rows]
         return self.Columns
+    
+    def get_columns_with_defaults(self) -> set:
+        '''
+        Retorna conjunto de colunas que possuem DEFAULT definido no banco.
+        Usa cache estático para evitar múltiplas queries.
+        Returns:
+            set: Conjunto com nomes das colunas que têm DEFAULT
+        '''
+        if self.table_name in TableController._defaults_cache:
+            return TableController._defaults_cache[self.table_name]
+        
+        query = f"""
+        SELECT c.name
+        FROM sys.columns c
+        INNER JOIN sys.tables t ON c.object_id = t.object_id
+        WHERE t.name = ? AND c.default_object_id > 0
+        """
+        defaults_result = self.db.doQuery(query, (self.table_name,))
+        columns_with_default = set(row[0] for row in defaults_result) if defaults_result else set()
+        
+        # Cachear resultado
+        TableController._defaults_cache[self.table_name] = columns_with_default
+        return columns_with_default
 
     def get_table_index(self) -> List[str]:
         '''
@@ -984,7 +1325,8 @@ class TableController():
         Returns:
             bool: True se existir pelo menos um registro, False caso contrário.
         '''
-        rows = self.select().where(where).limit(1).do_update(False).execute()
+        wrapper = self.select().where(where).limit(1).do_update(False)
+        rows = wrapper.execute()
         return len(rows) > 0
 
     def validate_fields(self) -> Dict[str, Any]:
@@ -1086,7 +1428,7 @@ class TableController():
         rows = self.db.doQuery(query, tuple(values))
         
         if has_aggregates or group_by:
-            column_mapping = []  # [(sql_index, field_name, is_aggregate)]
+            column_mapping = [] 
             sql_idx = 0
             
             if columns == ['*']:
@@ -1110,7 +1452,7 @@ class TableController():
             results = []
             for row in rows:
                 main_instance = self.__class__(self.db)
-                aggregate_extras = {}  # Para COUNT(*) e similares
+                aggregate_extras = {}  
                 
                 for sql_idx, field_name, is_agg in column_mapping:
                     value = row[sql_idx]
@@ -1195,22 +1537,30 @@ class TableController():
     def validate_write(self) -> Dict[str, Any]:
         '''
         Validação antes do insert ou update.
-        Verifica se campos obrigatórios estão preenchidos.
+        Verifica se campos obrigatórios estão preenchidos (exceto os que têm DEFAULT no banco).
         Returns:
             Dict[str, Any]: {'valid': True/False, 'error': mensagem}
         '''
         ret = {'valid': True, 'error': ''}
         columns = self.get_table_columns()
-        required_fields = [col[0] for col in columns if col[2] == 'NO' and col[0] != 'RECID']
+        columns_with_default = self.get_columns_with_defaults()
+        
+        # Filtrar campos NOT NULL que NÃO têm DEFAULT (esses são realmente obrigatórios)
+        required_fields = [
+            col[0] for col in columns 
+            if col[2] == 'NO' and col[0] != 'RECID' and col[0] not in columns_with_default
+        ]
+        
         instance_fields = {k: self._get_field_instance(k) for k in self.__dict__ if isinstance(self._get_field_instance(k), (EDTController, BaseEnumController, BaseEnumController.Enum))}
         
+        # Validar apenas campos obrigatórios que NÃO têm DEFAULT
         for field in required_fields:
             if field not in instance_fields:
                 ret = {'valid': False, 'error': f"Campo obrigatório '{field}' não existe na instância"}
                 return ret
             attr = instance_fields[field]
             if attr.value is None or attr.value == '':
-                ret = {'valid': False, 'error': f"Campo obrigatório '{field}' não pode ser vazio"}
+                ret = {'valid': False, 'error': f"Campo obrigatório '{field}' não pode ser vazio (campo sem DEFAULT no banco)"}
                 return ret
         return ret
 
@@ -1230,8 +1580,11 @@ class TableController():
         Args:
             record (Dict[str, Any] | TableController): Linha vinda do banco (SELECT) ou outra instância
         Returns:
-            self: Instância preenchida
+            self: Instância preenchida ou None se record for None
         '''
+        if record is None:
+            return self
+        
         if isinstance(record, TableController):
             for key in self.__dict__:
                 self_attr = self._get_field_instance(key)

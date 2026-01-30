@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from ..TableController import FieldCondition
@@ -19,13 +19,15 @@ class OperationManager:
         FieldCondition = self._get_field_condition()
         field_name = self._get_field_name()
         value = self._extract_value(other)
-        return FieldCondition(field_name, '=', value)
+        left_value = self.value if hasattr(self, 'value') else getattr(self, '_value', None)
+        return FieldCondition(field_name, '=', value, left_value=left_value)
     
     def __ne__(self, other) -> 'FieldCondition':
         FieldCondition = self._get_field_condition()
         field_name = self._get_field_name()
         value = self._extract_value(other)
-        return FieldCondition(field_name, '!=', value)
+        left_value = self.value if hasattr(self, 'value') else getattr(self, '_value', None)
+        return FieldCondition(field_name, '!=', value, left_value=left_value)
     
     def __lt__(self, other) -> 'FieldCondition':
         FieldCondition = self._get_field_condition()
@@ -76,18 +78,11 @@ class OperationManager:
     
     def _get_field_name(self) -> str:
         '''
-        Descobre o nome do campo na instância TableController
-        Usa inspection de frames para encontrar o atributo correspondente
+        Retorna o nome do campo armazenado no EDT/Enum
         '''
-        import inspect
+        # O nome do campo é injetado pelo TableController.__setattr__
+        if hasattr(self, '_field_name'):
+            return self._field_name
         
-        for frame_info in inspect.stack():
-            frame_locals = frame_info.frame.f_locals
-            if 'self' in frame_locals:
-                instance = frame_locals['self']
-                from ..TableController import TableController
-                if isinstance(instance, TableController):
-                    for attr_name, attr_value in instance.__dict__.items():
-                        if attr_value is self:
-                            return attr_name
+        # Fallback: retorna um nome genérico
         return 'FIELD'

@@ -39,13 +39,14 @@ class _Consult_Manager:
     Gerenciador de consultas (queries) e comandos (execute)
     '''
     
-    def doQuery(self, query: str, params: tuple = ()): 
+    def doQuery(self, query: str, params: tuple = (), ret_cols: bool = False): 
         '''Realiza uma query na conexão'''
         cursor = self.connection.cursor()
         cursor.execute(query, params)
         results = cursor.fetchall()
+        columns = [desc[0] for desc in cursor.description]
         cursor.close()
-        return results
+        return (results, columns) if ret_cols else results
     
     def executeCommand(self, command: str, params: tuple = ()): 
         '''Executa um comando na conexão'''

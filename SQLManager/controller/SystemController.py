@@ -1,5 +1,7 @@
 import traceback
 from datetime import datetime
+import requests
+from flask import redirect
 
 class SystemController:
 	"""
@@ -59,6 +61,10 @@ class SystemController:
 		""")
 
 	@staticmethod
+	def timenow():
+		return datetime.now()
+
+	@staticmethod
 	def validation_check(refvalidations):
 		errors = []
 		for v in refvalidations:
@@ -68,3 +74,26 @@ class SystemController:
 				errors.append(getattr(v, 'error', str(err)))
 				print(f"Erro: {err}")
 		return errors
+
+	@staticmethod
+	def doWebRequest(url, method='GET', headers=None, data=None, params=None, timeout=10):
+		try:
+			if method.upper() == 'GET':
+				response = requests.get(url, headers=headers, params=params, timeout=timeout)
+			elif method.upper() == 'POST':
+				response = requests.post(url, headers=headers, data=data, params=params, timeout=timeout)
+			elif method.upper() == 'PUT':
+				response = requests.put(url, headers=headers, data=data, params=params, timeout=timeout)
+			elif method.upper() == 'DELETE':
+				response = requests.delete(url, headers=headers, data=data, params=params, timeout=timeout)				
+			else:
+				raise ValueError(f"Método HTTP {method} não suportado.")
+			response.raise_for_status()
+			return response
+		except requests.RequestException as e:
+			print(f"Erro na requisição web: {e}")
+			return None
+		
+	@staticmethod
+	def redirect_to(url):
+		return redirect(url)

@@ -411,7 +411,7 @@ class Table_Manager:
         ]
 
         for table_name, file_path in tables_to_remove:
-            print(f"\n[NOTIFICAÇÃO] Tabela '{table_name}' removida da aplicação pois não existe no banco de dados!")
+            print(f"\nTabela '{SystemController().custom_text(table_name, 'red')}' removida da aplicação pois não existe no banco de dados!")
             file_path.unlink()
             if table_name in _model.available_tables:
                 del _model.available_tables[table_name]
@@ -513,26 +513,43 @@ class Table_Manager:
         
         new_fields = {}
         db_field_names = set()
+        updated_fields = []
+        
         for col in columns:
             col_name = col[0].upper()
             sql_type = col[1].lower()
             max_length = col[3]
             db_field_names.add(col_name)
             
+            new_field_type = Table_Manager._detect_field_type(_model, col_name, sql_type, max_length)
+            
             if col_name in existing_fields:
                 existing_def = existing_fields[col_name]
-                if 'EDTPack.' in existing_def or 'EnumPack.' in existing_def and 'Enum_cls' not in existing_def:
+                
+                # Verifica se tem EDT/Enum customizado específico
+                has_custom_edt = 'EDTPack.' in existing_def and existing_def != new_field_type
+                has_custom_enum = 'EnumPack.' in existing_def and 'Enum_cls' not in existing_def and existing_def != new_field_type
+                
+                if has_custom_edt or has_custom_enum:
+                    # Mantém customização específica
                     new_fields[col_name] = existing_def
                 else:
-                    new_fields[col_name] = Table_Manager._detect_field_type(_model, col_name, sql_type, max_length)
+                    # Atualiza para novo EDT/Enum se disponível ou usa genérico
+                    if existing_def != new_field_type:
+                        updated_fields.append(col_name)
+                    new_fields[col_name] = new_field_type
             else:
-                new_fields[col_name] = Table_Manager._detect_field_type(_model, col_name, sql_type, max_length)
+                # Campo novo
+                new_fields[col_name] = new_field_type
         
         existing_field_names = set(existing_fields.keys())
         
         new_field_names = db_field_names - existing_field_names
         if new_field_names:
             print(f"  - Tabela {SystemController().custom_text(table_name, 'cyan')}: {SystemController().custom_text('Campos adicionados', 'yellow')} - {', '.join(sorted(new_field_names))}")
+        
+        if updated_fields:
+            print(f"  - Tabela {SystemController().custom_text(table_name, 'cyan')}: {SystemController().custom_text('Campos atualizados com EDT/Enum', 'green')} - {', '.join(sorted(updated_fields))}")
         
         removed_field_names = existing_field_names - db_field_names
         if removed_field_names:

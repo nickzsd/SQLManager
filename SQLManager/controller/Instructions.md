@@ -205,8 +205,50 @@ data = [
 	('Headset', 200.00, 'Electronics', 1)
 ]
 
-affected = products.insert_recordset(columns, data)
-print(f"{affected} produtos inseridos")
+# Inserir todos os registros (com colunas explícitas) - executa automaticamente
+products.insert_recordset(data, columns)
+
+# Ou com lista de dicts (colunas automáticas) - executa automaticamente
+data_dict = [
+	{'NAME': 'Teclado', 'PRICE': 300.00, 'CATEGORY': 'Electronics', 'ACTIVE': 1},
+	{'NAME': 'Mouse', 'PRICE': 150.00, 'CATEGORY': 'Electronics', 'ACTIVE': 1}
+]
+products.insert_recordset(data_dict)
+```
+
+**INSERT em massa com WHERE - insert_recordset().where():**
+```python
+# Exemplo com dataclass (colunas extraídas automaticamente)
+@dataclass
+class ProductDict:
+    ITEMID: str
+    ITEMNAME: str
+    PRICE: float
+    CATEGORY: str
+
+# Dados extraídos do Senior ou outra fonte
+extracted_products = [
+	ProductDict('P001', 'Teclado Mecânico', 300.00, 'Electronics'),
+	ProductDict('P002', 'Mouse Pad', 50.00, 'Accessories'),
+	ProductDict('P003', 'Headset', 200.00, 'Electronics')
+]
+
+# Insere apenas produtos com ITEMID que NÃO existem no banco
+# Use STRING no .where() - retorna número de registros inseridos:
+affected = products.insert_recordset(extracted_products).where('ITEMID')
+print(f"{affected} produtos novos inseridos")
+
+# Exemplo prático completo com Senior:
+ExtractedData = _SeniorData(senior_db).extract_data()
+
+# ExtractedData.products já é uma lista de ProductDict
+# Insere apenas produtos que não existem (compara pelo ITEMID)
+affected = ProductTable.insert_recordset(ExtractedData.products).where('ITEMID')
+print(f"{affected} produtos novos sincronizados")
+
+# IMPORTANTE: Use sempre STRING no .where()
+# ✅ CORRETO: .where('ITEMID')
+# ❌ ERRADO:  .where(ProductTable.ITEMID)
 ```
 
 **UPDATE - Modelo básico:**
