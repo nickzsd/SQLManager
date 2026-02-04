@@ -16,8 +16,8 @@ setup(
     version="2.1.0",
     description="Sistema para gerenciamento de banco de dados e validações",
     author="Rojemac",
-    author_email="nicolas.santos.ext@gruporojemac.com.br",
-    url="https://dev.azure.com/gerencial-ti/_git/SQL%20Manager",
+    author_email="nicolas.santos@avalontecnologia.com.br",
+    url="https://github.com/nickzsd/SQLManager",
     packages=find_packages(include=["SQLManager", "SQLManager.*"]),
     include_package_data=True,
     package_data={
