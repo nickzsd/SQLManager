@@ -19,10 +19,10 @@ Sistema reutilizável para gerenciamento de conexões de banco de dados, valida�
 ### Como Repositório Externo
 
 ```bash
-pip install git+https://dev.azure.com/gerencial-ti/SQL%20Manager/_git/SQL%20Manager
+pip install git+https://github.com/nickzsd/SQLManager.git
 
 # Ou adicione ao requirements.txt
-git+https://dev.azure.com/gerencial-ti/SQL%20Manager/_git/SQL%20Manager.git
+git+https://github.com/nickzsd/SQLManager.git
 ```
 
 > **ATENÇÃO:** O `pip install` executa automaticamente o gerador de modelos durante a instalação. Certifique-se de que:
@@ -78,7 +78,7 @@ from SQLManager.controller import EDTController
 Para atualizar para a versão mais recente, execute:
 
 ```bash
-pip install --upgrade --force-reinstall git+https://dev.azure.com/gerencial-ti/SQL%20Manager/_git/SQL%20Manager
+pip install --upgrade --force-reinstall git+https://github.com/nickzsd/SQLManager.git
 ```
 
 ---
@@ -565,7 +565,7 @@ products.select().where((products.PRICE > 50) & (products.ACTIVE == 1)).order_by
 MeuProjeto/
 │
 ├── .env                   # Suas variáveis de ambiente
-├── requirements.txt       # git+git+https://dev.azure.com/gerencial-ti/SQL%20Manager/_git/SQL%20Manager.git
+├── requirements.txt       # git+https://github.com/nickzsd/SQLManager
 ├── app.py                 # Configurar CoreConfig aqui
 │
 ├── src/

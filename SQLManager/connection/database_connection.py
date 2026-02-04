@@ -242,5 +242,14 @@ class database_connection (_TTS_Manager, _Consult_Manager):
             except:
                 break
 
+    def can_connect(self) -> bool:
+        '''Testa se a conexão pode ser estabelecida'''
+        try:
+            conn = pyodbc.connect(self.connection_string, timeout=self._timeout)
+            conn.close()
+            return True
+        except:
+            return False
+
     def transaction(self) -> Transaction:
         return Transaction(self)
