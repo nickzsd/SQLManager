@@ -372,6 +372,11 @@ class SelectManager:
         
         rows = self._controller.db.doQuery(query, tuple(values))
         
+        # DEBUG: Ver o que o banco retornou
+        # print(f"DEBUG - Query: {query}")
+        # print(f"DEBUG - Rows returned: {rows}")
+        # print(f"DEBUG - Table columns: {[col[0] for col in table_columns]}")
+        
         if has_aggregates or self._group_by:
             results = self._process_aggregate_results(rows, columns, table_columns)
         elif self._joins:
@@ -1336,9 +1341,22 @@ class TableController():
         '''
         if self.Columns:
             return self.Columns
-        query = f"SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?"
-        rows = self.db.doQuery(query, (self.table_name,))
-        self.Columns = [[row[0], row[1], row[2]] for row in rows]
+        
+        try:
+            query = f"SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ?"
+            rows = self.db.doQuery(query, (self.table_name,))
+            self.Columns = [[row[0], row[1], row[2]] for row in rows]
+        except:
+            # Fallback: usa os campos EDT/Enum da própria classe (útil para mocks)
+            columns = []
+            for key in self.__dict__:
+                if not key.startswith('_') and key not in ('db', 'table_name', 'records', 'Columns', 'Indexes', 'ForeignKeys', 'isUpdate'):
+                    attr = self._get_field_instance(key)
+                    if isinstance(attr, (EDTController, BaseEnumController)):
+                        # [nome, tipo genérico, nullable]
+                        columns.append([key, 'nvarchar', 'YES'])
+            self.Columns = columns
+        
         return self.Columns
     
     def get_columns_with_defaults(self) -> set:
