@@ -383,9 +383,19 @@ class SelectManager:
         print(f">>> ANTES DO doQuery")
         print(f">>> Query: {query}")
         print(f">>> Values: {values}")
+        print(f">>> DB type: {type(self._controller.db)}")
+        print(f">>> DB methods: {[m for m in dir(self._controller.db) if not m.startswith('_')]}")
         
         try:
-            rows = self._controller.db.doQuery(query, tuple(values))
+            # Tenta usar doQuery primeiro, se não existir, usa executeCommand
+            if hasattr(self._controller.db, 'doQuery'):
+                rows = self._controller.db.doQuery(query, tuple(values))
+            elif hasattr(self._controller.db, 'executeCommand'):
+                cursor = self._controller.db.executeCommand(query, tuple(values))
+                rows = cursor.fetchall() if cursor else []
+            else:
+                raise Exception(f"Objeto {type(self._controller.db)} não tem método doQuery nem executeCommand")
+            
             print(f">>> DEPOIS DO doQuery")
             print(f">>> Rows: {rows}")
         except Exception as e:
