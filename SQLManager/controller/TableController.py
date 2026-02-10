@@ -232,9 +232,7 @@ class SelectManager:
 
     def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
         '''Adiciona condições WHERE e permite encadeamento'''
-        print(f">>> WHERE chamado - condition: {condition}, tipo: {type(condition)}")
         self._where_conditions = condition
-        print(f">>> WHERE aplicado - _where_conditions: {self._where_conditions}")
         return self
     
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
@@ -289,27 +287,19 @@ class SelectManager:
     
     def execute(self):
         """Executa a query SELECT e atualiza a instância automaticamente - Retorna o controller"""
-        print(f">>> execute() CHAMADO - table: {self._controller.table_name}")
-        
         if self._executed:
-            print(f">>> JÁ EXECUTADO, retornando")
             return self._controller
         
         self._executed = True
-        print(f">>> Validando campos...")
         validate = self._controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
-        
-        print(f">>> Campos validados OK")
         
         columns = self._columns or ['*']
         limit = self._limit or 100
         offset = self._offset or 0
         
-        print(f">>> Pegando colunas da tabela...")
         table_columns = self._controller.get_table_columns()
-        print(f">>> Colunas: {[col[0] for col in table_columns]}")
         has_aggregates = any(self._controller._is_aggregate_function(col) for col in columns) if columns != ['*'] else False
         
         if columns != ['*']:
@@ -380,40 +370,18 @@ class SelectManager:
             query += f" ORDER BY {main_alias}.{self._order_by}"
             query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
         
-        print(f">>> ANTES DA EXECUÇÃO SQL")
-        print(f">>> Query: {query}")
-        print(f">>> Values: {values}")
-        
-        try:
-            # Tenta usar doQuery primeiro, depois execute, depois executeCommand
-            if hasattr(self._controller.db, 'doQuery'):
-                rows = self._controller.db.doQuery(query, tuple(values))
-            elif hasattr(self._controller.db, 'execute'):
-                result = self._controller.db.execute(query, tuple(values))
-                # Se retornar cursor, faz fetchall, senão assume que já é a lista
-                rows = result.fetchall() if hasattr(result, 'fetchall') else result
-            elif hasattr(self._controller.db, 'executeCommand'):
-                cursor = self._controller.db.executeCommand(query, tuple(values))
-                rows = cursor.fetchall() if cursor else []
-            else:
-                raise Exception(f"Objeto {type(self._controller.db)} não tem método doQuery, execute ou executeCommand")
-            
-            print(f">>> DEPOIS DA EXECUÇÃO SQL")
-            print(f">>> Rows: {rows}")
-            print(f">>> Row count: {len(rows) if rows else 0}")
-        except Exception as e:
-            print(f">>> ERRO NA EXECUÇÃO SQL: {type(e).__name__}: {str(e)}")
-            import traceback
-            traceback.print_exc()
-            raise
-        
-        # DEBUG: Ver o que o banco retornou
-        print(f"\n=== DEBUG SQL ===")
-        print(f"Query: {query}")
-        print(f"Values: {values}")
-        print(f"Rows returned: {rows}")
-        print(f"Row count: {len(rows) if rows else 0}")
-        print(f"=================\n")
+        # Executa a query usando o método apropriado do banco
+        if hasattr(self._controller.db, 'doQuery'):
+            rows = self._controller.db.doQuery(query, tuple(values))
+        elif hasattr(self._controller.db, 'execute'):
+            result = self._controller.db.execute(query, tuple(values))
+            # Se retornar cursor, faz fetchall, senão assume que já é a lista
+            rows = result.fetchall() if hasattr(result, 'fetchall') else result
+        elif hasattr(self._controller.db, 'executeCommand'):
+            cursor = self._controller.db.executeCommand(query, tuple(values))
+            rows = cursor.fetchall() if cursor else []
+        else:
+            raise Exception(f"Objeto de conexão não possui método compatível (doQuery, execute ou executeCommand)")
         
         if has_aggregates or self._group_by:
             results = self._process_aggregate_results(rows, columns, table_columns)
