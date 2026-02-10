@@ -113,7 +113,7 @@ class AutoExecuteWrapper:
             def wrapper(*args, **kwargs):
                 result = attr(*args, **kwargs)
                 if result is self._select_manager:
-                    return AutoExecuteWrapper(self._select_manager)
+                    return self  # Retorna o próprio wrapper para manter o encadeamento
                 return result
             return wrapper
         return attr
@@ -196,54 +196,54 @@ class SelectManager:
         """Permite acesso por índice"""
         return self.execute()[index]
 
-    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'AutoExecuteWrapper':
-        '''Adiciona condições WHERE e retorna wrapper que auto-executa'''
+    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
+        '''Adiciona condições WHERE e permite encadeamento'''
         self._where_conditions = condition
-        return AutoExecuteWrapper(self)    
+        return self    
 
-    def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'AutoExecuteWrapper':
+    def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define as colunas a serem retornadas - Aceita campos ou strings'''
         self._columns = [self._extract_field_name(col) for col in cols]
-        return AutoExecuteWrapper(self)
+        return self
     
     def join(self, other_table, join_type: str = 'INNER') -> 'JoinBuilder':
         '''Inicia um JOIN com outra tabela'''
         return JoinBuilder(self, other_table, join_type)
     
-    def order_by(self, column: Union[str, EDTController, 'BaseEnumController']) -> 'AutoExecuteWrapper':
+    def order_by(self, column: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define ordenação - Aceita campo ou string'''
         self._order_by = self._extract_field_name(column)
-        return AutoExecuteWrapper(self)
+        return self
     
-    def limit(self, count: int) -> 'AutoExecuteWrapper':
+    def limit(self, count: int) -> 'SelectManager':
         '''Define limite de registros'''
         self._limit = count
-        return AutoExecuteWrapper(self)
+        return self
     
-    def offset(self, count: int) -> 'AutoExecuteWrapper':
+    def offset(self, count: int) -> 'SelectManager':
         '''Define offset'''
         self._offset = count
-        return AutoExecuteWrapper(self)
+        return self
     
-    def group_by(self, *columns: Union[str, EDTController, 'BaseEnumController']) -> 'AutoExecuteWrapper':
+    def group_by(self, *columns: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define GROUP BY - Aceita campos ou strings'''
         self._group_by = [self._extract_field_name(col) for col in columns]
-        return AutoExecuteWrapper(self)
+        return self
     
-    def having(self, conditions: List[Dict[str, Any]]) -> 'AutoExecuteWrapper':
+    def having(self, conditions: List[Dict[str, Any]]) -> 'SelectManager':
         '''Define HAVING para usar com GROUP BY'''
         self._having_conditions = conditions
-        return AutoExecuteWrapper(self)
+        return self
     
-    def distinct(self) -> 'AutoExecuteWrapper':
+    def distinct(self) -> 'SelectManager':
         '''Adiciona DISTINCT'''
         self._distinct = True
-        return AutoExecuteWrapper(self)
+        return self
     
-    def do_update(self, update: bool = True) -> 'AutoExecuteWrapper':
+    def do_update(self, update: bool = True) -> 'SelectManager':
         '''Define se deve atualizar a instância com o resultado'''
         self._do_update = update
-        return AutoExecuteWrapper(self)
+        return self
     
     def execute(self) -> List[Any]:
         """Executa a query SELECT e retorna resultados (atualiza a instância automaticamente)"""
@@ -1184,7 +1184,8 @@ class TableController():
         return DeleteManager.delete_from(self)
     
     def select(self) -> "SelectManager":
-        return self.__select_manager.__get__(self)
+        manager = self.__select_manager.__get__(self)
+        return AutoExecuteWrapper(manager)
 
     def _get_field_instance(self, name: str):
         '''
