@@ -373,10 +373,12 @@ class SelectManager:
         rows = self._controller.db.doQuery(query, tuple(values))
         
         # DEBUG: Ver o que o banco retornou
-        print(f"DEBUG - Query: {query}")
-        print(f"DEBUG - Values: {values}")
-        print(f"DEBUG - Rows returned: {rows}")
-        print(f"DEBUG - Table columns: {[col[0] for col in table_columns]}")
+        print(f"\n=== DEBUG SQL ===")
+        print(f"Query: {query}")
+        print(f"Values: {values}")
+        print(f"Rows returned: {rows}")
+        print(f"Row count: {len(rows) if rows else 0}")
+        print(f"=================\n")
         
         if has_aggregates or self._group_by:
             results = self._process_aggregate_results(rows, columns, table_columns)
