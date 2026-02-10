@@ -196,7 +196,7 @@ class SelectManager:
         """Permite acesso por índice"""
         return self.execute()[index]
 
-    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> Union['AutoExecuteWrapper','SelectManager']:
+    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'AutoExecuteWrapper':
         '''Adiciona condições WHERE e retorna wrapper que auto-executa'''
         self._where_conditions = condition
         return AutoExecuteWrapper(self)    
