@@ -13,7 +13,7 @@ class CustomInstallCommand(install):
 
 setup(
     name="SQLManager",
-    version="2.5.1",
+    version="3.5.1",
     description="Sistema para gerenciamento de banco de dados e validações",
     author="Rojemac",
     author_email="nicolas.santos@avalontecnologia.com.br",

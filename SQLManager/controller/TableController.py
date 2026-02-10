@@ -193,7 +193,8 @@ class SelectManager:
         self._having_conditions: Optional[List[Dict[str, Any]]] = None
         self._distinct: bool = False
         self._do_update: bool = True
-        self._executed = False        
+        self._executed = False
+        self._last_results = []        
 
     @staticmethod
     def _extract_field_name(field: Union[str, EDTController, 'BaseEnumController']) -> str:
@@ -389,6 +390,9 @@ class SelectManager:
         else:
             results = self._process_simple_results(rows, table_columns)
         
+        # SEMPRE armazena results no SelectManager para que exists() possa acessar
+        self._last_results = results
+        
         if self._do_update:
             if results:
                 if self._joins:
@@ -406,13 +410,13 @@ class SelectManager:
                 # Sem resultados: limpa os campos e registros
                 self._controller.clear()
                 self._controller.records = []
-                self._controller.records = []
+        else:
+            # Mesmo sem atualizar, mantém results acessíveis via _last_results
+            self._controller.records = results
         
         # Limpa o wrapper pendente após execução
         if hasattr(self._controller, '_pending_wrapper'):
             self._controller._pending_wrapper = None
-        
-        self.records = results
 
         # Retorna o controller (instância atualizada) ao invés da lista de resultados
         return self._controller
@@ -844,7 +848,7 @@ class UpdateManager:
                 raise Exception("Atualização sem chave primaria, preencha o campo RECID")
             
             recid_instance = self._get_field_instance('RECID')
-            if not self.exists(recid_instance == recid_instance.value):
+            if not self.__check_exists(recid_instance == recid_instance.value):
                 raise Exception(f"Registro com RECID {recid_instance.value} não existe na tabela {self.table_name}")
             
             return func(self, *args, **kwargs)
@@ -1039,7 +1043,7 @@ class DeleteManager:
                 raise Exception("Exclusão sem chave primaria, preencha o campo RECID")
             
             recid_instance = self._get_field_instance('RECID')
-            if not self.exists(recid_instance == recid_instance.value):
+            if not self.__check_exists(recid_instance == recid_instance.value):
                 raise Exception(f"Registro com RECID {recid_instance.value} não existe na tabela {self.table_name}")
             
             return func(self, *args, **kwargs)
@@ -1421,18 +1425,29 @@ class TableController():
         '''        
         return len(self.records)
 
+    def __check_exists(self, where: Union[FieldCondition, BinaryExpression]) -> bool:
+        '''
+        MÉTODO INTERNO: Verifica se existem registros (usado por decorators).
+        Args:
+            where: Condição WHERE usando operadores sobrecarregados
+        Returns:
+            bool: True se existir pelo menos um registro, False caso contrário.
+        '''
+        select_mgr = self.select().where(where).limit(1).do_update(False)
+        select_mgr.execute()
+        return len(select_mgr._last_results) > 0
+    
     def exists(self, where: Union[FieldCondition, BinaryExpression]) -> bool:
         '''
         Verifica se existem registros que atendem aos critérios especificados.
         Args:
             where: Condição WHERE usando operadores sobrecarregados
-                   Ex: tabela.c.RECID == 5
-                   Ex: (tabela.c.campo == 5) & (tabela.c.outro > 10)
+                   Ex: tabela.RECID == 5
+                   Ex: (tabela.CAMPO == 5) & (tabela.OUTRO > 10)
         Returns:
             bool: True se existir pelo menos um registro, False caso contrário.
         '''
-        result = self.select().where(where).limit(1).do_update(False).execute()
-        return len(result.records) > 0
+        return self.__check_exists(where)
 
     def validate_fields(self) -> Dict[str, Any]:
         '''
