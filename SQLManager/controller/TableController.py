@@ -232,13 +232,7 @@ class SelectManager:
 
     def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
         '''Adiciona condições WHERE e permite encadeamento'''
-        print(f"DEBUG where() - Recebendo condition: {condition}")
-        print(f"DEBUG where() - Tipo: {type(condition)}")
-        if hasattr(condition, 'to_sql'):
-            sql, values = condition.to_sql()
-            print(f"DEBUG where() - SQL: {sql}, Values: {values}")
         self._where_conditions = condition
-        print(f"DEBUG where() - _where_conditions setado: {self._where_conditions}")
         return self    
 
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
@@ -293,17 +287,10 @@ class SelectManager:
     
     def execute(self):
         """Executa a query SELECT e atualiza a instância automaticamente - Retorna o controller"""
-        print(f"DEBUG execute() - INICIANDO EXECUÇÃO")
-        print(f"DEBUG execute() - _executed: {self._executed}")
-        print(f"DEBUG execute() - table_name: {self._controller.table_name}")
-        print(f"DEBUG execute() - _where_conditions: {self._where_conditions}")
-        
         if self._executed:
-            print(f"DEBUG execute() - JÁ EXECUTADO, retornando controller")
             return self._controller
         
         self._executed = True
-        print(f"DEBUG execute() - Validando campos...")
         validate = self._controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
@@ -1182,31 +1169,10 @@ class TableController():
         if callable(attr):
             return attr
         
-        # Se é EDT/Enum, verifica o contexto
+        # Se é EDT/Enum, SEMPRE retorna o EDT para permitir operadores
+        # O valor é acessado via .value explícito
         if isinstance(attr, (EDTController, BaseEnumController)):
-            # Verifica a pilha de chamadas para determinar contexto
-            import inspect
-            frame = inspect.currentframe()
-            try:
-                # Pega o caller (quem chamou)
-                caller_frame = frame.f_back
-                if caller_frame:
-                    caller_locals = caller_frame.f_locals
-                    # Se está dentro de métodos de query (where, columns, etc), retorna EDT
-                    if 'self' in caller_locals:
-                        caller_self = caller_locals['self']
-                        if isinstance(caller_self, (SelectManager, AutoExecuteWrapper)):
-                            return attr  # Retorna EDT para queries
-                    
-                    # Verifica se é chamada de _extract_field_name
-                    caller_code = caller_frame.f_code
-                    if '_extract_field_name' in caller_code.co_name:
-                        return attr  # Retorna EDT
-            finally:
-                del frame
-            
-            # Contexto normal: retorna valor (com padrão se None)
-            return attr.value
+            return attr
         
         return attr
   
