@@ -196,11 +196,11 @@ class SelectManager:
         """Permite acesso por índice"""
         return self.execute()[index]
 
-    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'AutoExecuteWrapper':
+    def where(self, condition: Union[FieldCondition, BinaryExpression]) -> Union['AutoExecuteWrapper','SelectManager']:
         '''Adiciona condições WHERE e retorna wrapper que auto-executa'''
         self._where_conditions = condition
-        return AutoExecuteWrapper(self)
-    
+        return AutoExecuteWrapper(self)    
+
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'AutoExecuteWrapper':
         '''Define as colunas a serem retornadas - Aceita campos ou strings'''
         self._columns = [self._extract_field_name(col) for col in cols]
