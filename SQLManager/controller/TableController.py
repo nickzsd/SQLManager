@@ -200,6 +200,7 @@ class SelectManager:
         '''Extrai o nome do campo de um EDT/Enum ou retorna a string'''
         if isinstance(field, (EDTController, BaseEnumController)):
             return field._get_field_name()
+        # Se vier como string já, retorna direto
         return str(field)
 
     def __get__(self, instance, owner=None):
@@ -381,11 +382,19 @@ class SelectManager:
                     elif results:
                         self._controller.set_current(results[0])
                 else:
+                    # Resultados simples (dicts)
                     self._controller.records = results
-                    self._controller.set_current(results[0])
+                    if results and isinstance(results[0], dict):
+                        self._controller.set_current(results[0])
             else:
                 # Sem resultados: limpa os campos e registros
                 self._controller.clear()
+                self._controller.records = []
+                self._controller.records = []
+        
+        # Limpa o wrapper pendente após execução
+        if hasattr(self._controller, '_pending_wrapper'):
+            self._controller._pending_wrapper = None
         
         self.records = results
 
@@ -1111,8 +1120,8 @@ class TableController():
     def __getattribute__(self, name: str):
         '''
         Intercepta acesso aos campos:
-        - SEMPRE retorna a instância EDT/Enum para permitir operadores
-        - Para acessar valores, use .value explicitamente
+        - table.CAMPO retorna o VALOR diretamente (table.CAMPO.value)
+        - table.field('CAMPO') retorna o EDT/Enum para construir queries
         - Se houver query pendente, executa antes de retornar o campo
         '''
         protected_attrs = {
@@ -1120,7 +1129,12 @@ class TableController():
             '_where_conditions', '_columns', '_joins', '_order_by', '_limit',
             '_offset', '_group_by', '_having_conditions', '_distinct', '_do_update',
             'controller', '__class__', '__dict__', 'isUpdate', '_pending_wrapper',
-            '__select_manager'
+            '__select_manager', 'field', 'select', 'insert', 'update', 'delete',
+            'insert_recordset', 'update_recordset', 'delete_from', 'set_current',
+            'clear', 'validate_fields', 'validate_write', 'get_table_columns',
+            'get_columns_with_defaults', 'get_table_index', 'get_table_foreign_keys',
+            'get_table_total', 'exists', '_get_field_instance', '_is_aggregate_function',
+            '_extract_field_from_aggregate', 'SelectForUpdate'
         }
         
         if name in protected_attrs or name.startswith('_'):
@@ -1142,7 +1156,10 @@ class TableController():
         if callable(attr):
             return attr
         
-        # SEMPRE retorna instância EDT/Enum (permite operadores)
+        # Se é EDT/Enum, retorna o VALOR diretamente
+        if isinstance(attr, (EDTController, BaseEnumController)):
+            return attr.value
+        
         return attr
   
     def __setattr__(self, name: str, value: Any):
@@ -1234,6 +1251,17 @@ class TableController():
         wrapper = AutoExecuteWrapper(manager)
         self._pending_wrapper = wrapper  # Registra wrapper pendente
         return wrapper
+
+    def field(self, name: str):
+        '''
+        Retorna a instância EDT/Enum real de um campo (para construir queries).
+        Use quando precisar construir condições WHERE.
+        
+        Exemplo:
+            table.field('RECID') == 5  # Para queries
+            table.RECID            # Para acessar valor
+        '''
+        return object.__getattribute__(self, name)
 
     def _get_field_instance(self, name: str):
         '''
