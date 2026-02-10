@@ -1185,8 +1185,8 @@ class TableController():
             finally:
                 del frame
             
-            # Contexto normal: retorna valor
-            return attr.value if hasattr(attr, 'value') else 0
+            # Contexto normal: retorna valor (com padrão se None)
+            return attr.value
         
         return attr
   
@@ -1671,12 +1671,13 @@ class TableController():
 
     def clear(self):
         '''
-        Limpa os campos da tabela (seta todos para None) e limpa os registros.
+        Limpa os campos da tabela (seta todos para None/valor padrão) e limpa os registros.
         '''
         for key in self.__dict__:
             attr = self._get_field_instance(key)
             if isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum)):
-                attr.set_value(None)
+                # Seta como None, o property .value vai retornar o padrão
+                attr._value = None
         self.records = []
 
     def set_current(self, record):
