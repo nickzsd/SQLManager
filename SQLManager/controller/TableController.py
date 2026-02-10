@@ -1278,7 +1278,8 @@ class TableController():
         return DeleteManager.delete_from(self)
     
     def select(self) -> "SelectManager":
-        manager = self.__select_manager.__get__(self)
+        # Cria uma NOVA instância de SelectManager a cada chamada
+        manager = SelectManager(self)
         wrapper = AutoExecuteWrapper(manager)
         self._pending_wrapper = wrapper  # Registra wrapper pendente
         return wrapper
