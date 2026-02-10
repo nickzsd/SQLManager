@@ -237,7 +237,6 @@ class SelectManager:
     
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define as colunas a serem retornadas - Aceita campos EDT/Enum ou strings'''
-        print(f">>> COLUMNS chamado - cols: {cols}")
         extracted_cols = []
         for col in cols:
             if isinstance(col, (EDTController, BaseEnumController)):
@@ -245,7 +244,7 @@ class SelectManager:
             else:
                 extracted_cols.append(str(col))
         self._columns = extracted_cols
-        print(f">>> COLUMNS aplicado - _columns: {self._columns}")
+        return self
     def join(self, other_table, join_type: str = 'INNER') -> 'JoinBuilder':
         '''Inicia um JOIN com outra tabela'''
         return JoinBuilder(self, other_table, join_type)
