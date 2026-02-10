@@ -1156,9 +1156,9 @@ class TableController():
         if callable(attr):
             return attr
         
-        # Se é EDT/Enum, retorna o VALOR diretamente
+        # Se é EDT/Enum, SEMPRE retorna o VALOR (mesmo que None)
         if isinstance(attr, (EDTController, BaseEnumController)):
-            return attr.value
+            return attr.value if hasattr(attr, 'value') else None
         
         return attr
   
@@ -1672,13 +1672,25 @@ class TableController():
                             self_attr.value = source_attr.value
             return self
         
-        for key, value in record.items():
-            if hasattr(self, key):
-                attr = self._get_field_instance(key)
-                if isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum)):
-                    attr.value = value
-                else:
-                    setattr(self, key, value)
+        # Criar mapeamento case-insensitive
+        record_upper = {k.upper(): v for k, v in record.items()}
+        
+        for key in self.__dict__:
+            # Pular atributos especiais
+            if key.startswith('_') or key in ('db', 'table_name', 'records', 'Columns', 'Indexes', 'ForeignKeys', 'isUpdate'):
+                continue
+                
+            attr = self._get_field_instance(key)
+            if isinstance(attr, (EDTController, BaseEnumController, BaseEnumController.Enum)):
+                # Busca o valor no dict com case-insensitive
+                key_upper = key.upper()
+                if key_upper in record_upper:
+                    try:
+                        attr.value = record_upper[key_upper]
+                    except (ValueError, TypeError):
+                        # Se falhar ao setar, mantém None
+                        pass
+        
         return self    
 
 class CheckParms:
