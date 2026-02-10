@@ -287,19 +287,27 @@ class SelectManager:
     
     def execute(self):
         """Executa a query SELECT e atualiza a instância automaticamente - Retorna o controller"""
+        print(f">>> execute() CHAMADO - table: {self._controller.table_name}")
+        
         if self._executed:
+            print(f">>> JÁ EXECUTADO, retornando")
             return self._controller
         
         self._executed = True
+        print(f">>> Validando campos...")
         validate = self._controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
+        
+        print(f">>> Campos validados OK")
         
         columns = self._columns or ['*']
         limit = self._limit or 100
         offset = self._offset or 0
         
+        print(f">>> Pegando colunas da tabela...")
         table_columns = self._controller.get_table_columns()
+        print(f">>> Colunas: {[col[0] for col in table_columns]}")
         has_aggregates = any(self._controller._is_aggregate_function(col) for col in columns) if columns != ['*'] else False
         
         if columns != ['*']:
@@ -370,7 +378,14 @@ class SelectManager:
             query += f" ORDER BY {main_alias}.{self._order_by}"
             query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
         
+        print(f">>> ANTES DO doQuery")
+        print(f">>> Query: {query}")
+        print(f">>> Values: {values}")
+        
         rows = self._controller.db.doQuery(query, tuple(values))
+        
+        print(f">>> DEPOIS DO doQuery")
+        print(f">>> Rows: {rows}")
         
         # DEBUG: Ver o que o banco retornou
         print(f"\n=== DEBUG SQL ===")
