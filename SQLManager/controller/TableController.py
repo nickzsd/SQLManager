@@ -232,7 +232,13 @@ class SelectManager:
 
     def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
         '''Adiciona condições WHERE e permite encadeamento'''
+        print(f"DEBUG where() - Recebendo condition: {condition}")
+        print(f"DEBUG where() - Tipo: {type(condition)}")
+        if hasattr(condition, 'to_sql'):
+            sql, values = condition.to_sql()
+            print(f"DEBUG where() - SQL: {sql}, Values: {values}")
         self._where_conditions = condition
+        print(f"DEBUG where() - _where_conditions setado: {self._where_conditions}")
         return self    
 
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
