@@ -380,26 +380,29 @@ class SelectManager:
             query += f" ORDER BY {main_alias}.{self._order_by}"
             query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
         
-        print(f">>> ANTES DO doQuery")
+        print(f">>> ANTES DA EXECUÇÃO SQL")
         print(f">>> Query: {query}")
         print(f">>> Values: {values}")
-        print(f">>> DB type: {type(self._controller.db)}")
-        print(f">>> DB methods: {[m for m in dir(self._controller.db) if not m.startswith('_')]}")
         
         try:
-            # Tenta usar doQuery primeiro, se não existir, usa executeCommand
+            # Tenta usar doQuery primeiro, depois execute, depois executeCommand
             if hasattr(self._controller.db, 'doQuery'):
                 rows = self._controller.db.doQuery(query, tuple(values))
+            elif hasattr(self._controller.db, 'execute'):
+                result = self._controller.db.execute(query, tuple(values))
+                # Se retornar cursor, faz fetchall, senão assume que já é a lista
+                rows = result.fetchall() if hasattr(result, 'fetchall') else result
             elif hasattr(self._controller.db, 'executeCommand'):
                 cursor = self._controller.db.executeCommand(query, tuple(values))
                 rows = cursor.fetchall() if cursor else []
             else:
-                raise Exception(f"Objeto {type(self._controller.db)} não tem método doQuery nem executeCommand")
+                raise Exception(f"Objeto {type(self._controller.db)} não tem método doQuery, execute ou executeCommand")
             
-            print(f">>> DEPOIS DO doQuery")
+            print(f">>> DEPOIS DA EXECUÇÃO SQL")
             print(f">>> Rows: {rows}")
+            print(f">>> Row count: {len(rows) if rows else 0}")
         except Exception as e:
-            print(f">>> ERRO NO doQuery: {type(e).__name__}: {str(e)}")
+            print(f">>> ERRO NA EXECUÇÃO SQL: {type(e).__name__}: {str(e)}")
             import traceback
             traceback.print_exc()
             raise
