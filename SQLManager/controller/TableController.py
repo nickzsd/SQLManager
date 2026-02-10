@@ -384,10 +384,15 @@ class SelectManager:
         print(f">>> Query: {query}")
         print(f">>> Values: {values}")
         
-        rows = self._controller.db.doQuery(query, tuple(values))
-        
-        print(f">>> DEPOIS DO doQuery")
-        print(f">>> Rows: {rows}")
+        try:
+            rows = self._controller.db.doQuery(query, tuple(values))
+            print(f">>> DEPOIS DO doQuery")
+            print(f">>> Rows: {rows}")
+        except Exception as e:
+            print(f">>> ERRO NO doQuery: {type(e).__name__}: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise
         
         # DEBUG: Ver o que o banco retornou
         print(f"\n=== DEBUG SQL ===")
