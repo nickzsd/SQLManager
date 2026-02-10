@@ -236,8 +236,14 @@ class SelectManager:
         return self    
 
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
-        '''Define as colunas a serem retornadas - Aceita campos ou strings'''
-        self._columns = [self._extract_field_name(col) for col in cols]
+        '''Define as colunas a serem retornadas - Aceita campos EDT/Enum ou strings'''
+        extracted_cols = []
+        for col in cols:
+            if isinstance(col, (EDTController, BaseEnumController)):
+                extracted_cols.append(self._extract_field_name(col))
+            else:
+                extracted_cols.append(str(col))
+        self._columns = extracted_cols
         return self
     
     def join(self, other_table, join_type: str = 'INNER') -> 'JoinBuilder':
@@ -1120,8 +1126,8 @@ class TableController():
     def __getattribute__(self, name: str):
         '''
         Intercepta acesso aos campos:
-        - table.CAMPO retorna o VALOR diretamente (table.CAMPO.value)
-        - table.field('CAMPO') retorna o EDT/Enum para construir queries
+        - Em contexto de query: retorna EDT/Enum (para operadores)
+        - Em contexto normal: retorna o VALOR
         - Se houver query pendente, executa antes de retornar o campo
         '''
         protected_attrs = {
@@ -1156,9 +1162,31 @@ class TableController():
         if callable(attr):
             return attr
         
-        # Se é EDT/Enum, SEMPRE retorna o VALOR (mesmo que None)
+        # Se é EDT/Enum, verifica o contexto
         if isinstance(attr, (EDTController, BaseEnumController)):
-            return attr.value if hasattr(attr, 'value') else None
+            # Verifica a pilha de chamadas para determinar contexto
+            import inspect
+            frame = inspect.currentframe()
+            try:
+                # Pega o caller (quem chamou)
+                caller_frame = frame.f_back
+                if caller_frame:
+                    caller_locals = caller_frame.f_locals
+                    # Se está dentro de métodos de query (where, columns, etc), retorna EDT
+                    if 'self' in caller_locals:
+                        caller_self = caller_locals['self']
+                        if isinstance(caller_self, (SelectManager, AutoExecuteWrapper)):
+                            return attr  # Retorna EDT para queries
+                    
+                    # Verifica se é chamada de _extract_field_name
+                    caller_code = caller_frame.f_code
+                    if '_extract_field_name' in caller_code.co_name:
+                        return attr  # Retorna EDT
+            finally:
+                del frame
+            
+            # Contexto normal: retorna valor
+            return attr.value if hasattr(attr, 'value') else 0
         
         return attr
   

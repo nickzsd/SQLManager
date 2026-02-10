@@ -108,7 +108,23 @@ class EDTController(EDT_Utils, OperationManager):
 
     @property
     def value(self) -> Any:
-        return self._value
+        """Retorna o valor ou valor padrão do tipo se None"""
+        if self._value is not None:
+            return self._value
+        
+        # Se não há valor, retorna padrão baseado no type_id
+        if self.type_id is not None:
+            expected_type = self.type_id.value if hasattr(self.type_id, 'value') else self.type_id
+            if expected_type == int:
+                return 0
+            elif expected_type == float:
+                return 0.0
+            elif expected_type == str:
+                return ""
+            elif expected_type == bool:
+                return False
+        
+        return None
 
     @value.setter
     def value(self, val: Any):
