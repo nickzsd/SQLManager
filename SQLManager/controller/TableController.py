@@ -1336,7 +1336,7 @@ class TableController():
         Returns:
             Dict[str, Any]: {'valid': True/False, 'error': mensagem}
         '''
-        validate = self.validate_fields()
+        validate = self.__validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
         
@@ -1516,6 +1516,24 @@ class TableController():
                 self.set_current(result[0])
             
             return result
+
+    def __validate_fields(self) -> Dict[str, Any]:
+        '''
+        Valida se os campos da instância existem na tabela.
+        Returns:
+            Dict[str, Any]: {'valid': True/False, 'error': mensagem}
+        '''
+        ret = {'valid': True, 'error': ''}
+        instance_fields = [k for k in self.__dict__ if isinstance(self._get_field_instance(k), (EDTController, BaseEnumController, BaseEnumController.Enum))]
+        table_columns = self.get_table_columns()
+        field_names = [col[0].upper() for col in table_columns]
+        invalid_fields = [f for f in instance_fields if f.upper() not in field_names]
+        if invalid_fields:
+            ret = {
+                'valid': False,
+                'error': f"Campo(s) inválido(s) na instância: [{', '.join(invalid_fields)}] não existem na tabela [{self.table_name}]"
+            }
+        return ret
 
     def validate_write(self) -> Dict[str, Any]:
         '''
