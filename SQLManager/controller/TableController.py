@@ -123,10 +123,12 @@ class AutoExecuteWrapper:
     
     def __del__(self):
         """Auto-executa quando não há mais referência ao wrapper"""
-        self._finalize()
+        # DESABILITADO: Execução em __del__ causa problemas com GC durante construção da cadeia
+        # Use .execute() explícito ou acesse métodos mágicos (__len__, __bool__, etc)
+        pass
     
     def _finalize(self):
-        """Finaliza e executa se necessário"""
+        """Finaliza e executa se necessário (chamado apenas em contextos seguros)"""
         if not self._finalized:
             self._finalized = True
             if not self._executed and not self._select_manager._executed:
@@ -175,12 +177,6 @@ class AutoExecuteWrapper:
     def __getitem__(self, index):
         """Permite acesso por índice - auto-executa se necessário"""
         return self._ensure_executed()[index]
-    
-    def __repr__(self):
-        """Força execução quando objeto é representado/inspecionado"""
-        if not self._finalized:
-            self._finalize()
-        return f"<SelectQuery executed={self._executed}>"
 
 class SelectManager:
     '''Gerencia operações SELECT com API fluente - Auto-executa quando a cadeia termina'''
@@ -1108,6 +1104,7 @@ class TableController():
         self.ForeignKeys: Optional[List[Dict[str, Any]]] = None
 
         self.isUpdate = False
+        self._pending_wrapper = None  # Rastreia wrapper pendente de execução
 
         self.__select_manager = SelectManager(self)        
 
@@ -1116,16 +1113,28 @@ class TableController():
         Intercepta acesso aos campos:
         - SEMPRE retorna a instância EDT/Enum para permitir operadores
         - Para acessar valores, use .value explicitamente
+        - Se houver query pendente, executa antes de retornar o campo
         '''
         protected_attrs = {
             'db', 'table_name', 'records', 'Columns', 'Indexes', 'ForeignKeys',
             '_where_conditions', '_columns', '_joins', '_order_by', '_limit',
             '_offset', '_group_by', '_having_conditions', '_distinct', '_do_update',
-            'controller', '__class__', '__dict__', 'isUpdate'
+            'controller', '__class__', '__dict__', 'isUpdate', '_pending_wrapper',
+            '__select_manager'
         }
         
         if name in protected_attrs or name.startswith('_'):
             return object.__getattribute__(self, name)
+        
+        # Se estiver acessando um campo e houver wrapper pendente, executa
+        if not name.startswith('_'):
+            pending = object.__getattribute__(self, '_pending_wrapper')
+            if pending is not None:
+                try:
+                    pending._finalize()  # Força execução
+                    object.__setattr__(self, '_pending_wrapper', None)
+                except:
+                    pass
         
         attr = object.__getattribute__(self, name)
         
@@ -1141,7 +1150,7 @@ class TableController():
         if name in ('db', 'table_name', 'records', 'Columns', 'Indexes', 'ForeignKeys',
                     '_where_conditions', '_columns', '_joins', '_order_by', '_limit', 
                     '_offset', '_group_by', '_having_conditions', '_distinct', '_do_update',
-                    'controller'):
+                    'controller', '_pending_wrapper', '__select_manager'):
             object.__setattr__(self, name, value)
             return
 
@@ -1222,7 +1231,9 @@ class TableController():
     
     def select(self) -> "SelectManager":
         manager = self.__select_manager.__get__(self)
-        return AutoExecuteWrapper(manager)
+        wrapper = AutoExecuteWrapper(manager)
+        self._pending_wrapper = wrapper  # Registra wrapper pendente
+        return wrapper
 
     def _get_field_instance(self, name: str):
         '''
