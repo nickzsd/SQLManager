@@ -285,10 +285,10 @@ class SelectManager:
         self._do_update = update
         return self
     
-    def execute(self) -> List[Any]:
-        """Executa a query SELECT e retorna resultados (atualiza a instância automaticamente)"""
+    def execute(self):
+        """Executa a query SELECT e atualiza a instância automaticamente - Retorna o controller"""
         if self._executed:
-            return self._controller.records if hasattr(self._controller, 'records') else []
+            return self._controller
         
         self._executed = True
         validate = self._controller.validate_fields()
@@ -373,9 +373,10 @@ class SelectManager:
         rows = self._controller.db.doQuery(query, tuple(values))
         
         # DEBUG: Ver o que o banco retornou
-        # print(f"DEBUG - Query: {query}")
-        # print(f"DEBUG - Rows returned: {rows}")
-        # print(f"DEBUG - Table columns: {[col[0] for col in table_columns]}")
+        print(f"DEBUG - Query: {query}")
+        print(f"DEBUG - Values: {values}")
+        print(f"DEBUG - Rows returned: {rows}")
+        print(f"DEBUG - Table columns: {[col[0] for col in table_columns]}")
         
         if has_aggregates or self._group_by:
             results = self._process_aggregate_results(rows, columns, table_columns)
@@ -409,7 +410,8 @@ class SelectManager:
         
         self.records = results
 
-        return results
+        # Retorna o controller (instância atualizada) ao invés da lista de resultados
+        return self._controller
     
     def _process_aggregate_results(self, rows, columns, table_columns):
         """Processa resultados com agregações"""
@@ -1458,186 +1460,7 @@ class TableController():
         Returns:
             Dict[str, Any]: {'valid': True/False, 'error': mensagem}
         '''
-        validate = self.__validate_fields()
-        if not validate['valid']:
-            raise Exception(validate['error'])
-        
-        where = self._query_where
-        columns = self._query_columns or ['*']
-        options = self._query_options or {}
-        
-        order_by = options.get('orderBy')
-        limit = options.get('limit', 100)
-        offset = options.get('offset', 0)
-        do_update = options.get('doUpdate', True)
-        group_by = options.get('groupBy')
-        having = options.get('having')
-        distinct = options.get('distinct', False)
-        table_columns = self.get_table_columns()
-        has_aggregates = any(self._is_aggregate_function(col) for col in columns) if columns != ['*'] else False
-        
-        if columns != ['*']:
-            col_names = [col[0] for col in table_columns]
-            for col in columns:
-                if self._is_aggregate_function(col):
-                    field_name = self._extract_field_from_aggregate(col)
-                    if field_name and field_name not in col_names:
-                        raise Exception(f"Campo '{field_name}' na agregação '{col}' não existe na tabela")
-                elif col not in col_names:
-                    raise Exception(f"Coluna inválida: {col}")
-        main_alias = self.table_name
-        select_columns = []
-        if columns == ['*']:
-            select_columns += [f"{main_alias}.{col[0]} AS {main_alias}_{col[0]}" for col in table_columns]
-        else:
-            for col in columns:
-                if self._is_aggregate_function(col):
-                    alias_name = col.replace('(', '_').replace(')', '').replace('*', 'ALL').replace('.', '_').replace(' ', '')
-                    select_columns.append(f"{col} AS {alias_name}")
-                else:
-                    select_columns.append(f"{main_alias}.{col} AS {main_alias}_{col}")
-        join_clauses = []
-        join_controllers = []
-        for join in getattr(self, '_joins', []):
-            ctrl = join['controller']
-            alias = join['alias']
-            join_type = join['type']
-            join_on = join['on']
-            index_hint = join.get('index_hint')
-            join_columns = ctrl.get_table_columns()
-            join_controllers.append((ctrl, alias))
-            if join['columns']:
-                select_columns += [f"{alias}.{col} AS {alias}_{col}" for col in join['columns']]
-            else:
-                select_columns += [f"{alias}.{col[0]} AS {alias}_{col[0]}" for col in join_columns]
-            hint = f" WITH (INDEX({index_hint}))" if index_hint else ""
-            join_clauses.append(f" {join_type} JOIN {ctrl.table_name} AS {alias}{hint} ON {' '.join(join_on)} ")
-        
-        distinct_keyword = "DISTINCT " if distinct else ""
-        query = f"SELECT {distinct_keyword}{', '.join(select_columns)} FROM {self.table_name} AS {main_alias}" + ''.join(join_clauses)
-        values = []
-        if where:
-            where_clauses = []
-            for idx, f in enumerate(where):
-                if f['field'] not in [col[0] for col in table_columns]:
-                    raise Exception(f"Coluna {f['field']} não existe na tabela")
-                operator = f.get('operator', '=')
-                logical = f.get('logical', None)
-                clause = f"{main_alias}.{f['field']} {operator} ?"
-                if idx > 0:
-                    prev_logical = where[idx-1].get('logical', 'AND').upper() if 'logical' in where[idx-1] else 'AND'
-                    clause = f"{prev_logical} {clause}"
-                where_clauses.append(clause)
-                values.append(f['value'])
-            query += " WHERE " + " ".join(where_clauses)
-        
-        if group_by:
-            if isinstance(group_by, str):
-                group_by = [group_by]
-            group_clauses = [f"{main_alias}.{field}" for field in group_by]
-            query += " GROUP BY " + ", ".join(group_clauses)
-        
-        if having:
-            having_clauses = []
-            for h in having:
-                operator = h.get('operator', '=')
-                having_clauses.append(f"{h['field']} {operator} ?")
-                values.append(h['value'])
-            query += " HAVING " + " AND ".join(having_clauses)
-        
-        if order_by:
-            query += f" ORDER BY {main_alias}.{order_by}"
-            query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
-        rows = self.db.doQuery(query, tuple(values))
-        
-        if has_aggregates or group_by:
-            column_mapping = [] 
-            sql_idx = 0
-            
-            if columns == ['*']:
-                for col in table_columns:
-                    column_mapping.append((sql_idx, col[0], False))
-                    sql_idx += 1
-            else:
-                for col in columns:
-                    if self._is_aggregate_function(col):
-                        field_name = self._extract_field_from_aggregate(col)
-                        if field_name:
-                            column_mapping.append((sql_idx, field_name, True))
-                        else:
-                            alias_name = col.replace('(', '_').replace(')', '').replace('*', 'ALL').replace('.', '_').replace(' ', '')
-                            column_mapping.append((sql_idx, alias_name, True))
-                        sql_idx += 1
-                    else:
-                        column_mapping.append((sql_idx, col, False))
-                        sql_idx += 1
-            
-            results = []
-            for row in rows:
-                main_instance = self.__class__(self.db)
-                aggregate_extras = {}  
-                
-                for sql_idx, field_name, is_agg in column_mapping:
-                    value = row[sql_idx]
-                    if hasattr(main_instance, field_name):
-                        getattr(main_instance, field_name).value = value
-                    else:
-                        aggregate_extras[field_name] = value
-                
-                if aggregate_extras:
-                    main_instance._aggregate_results = aggregate_extras
-                
-                results.append(main_instance)
-            
-            if do_update and results:
-                self.records = results
-                self.set_current(results[0])
-            
-            self._query_where = None
-            self._query_columns = None
-            self._query_options = None
-            self._joins = []
-            
-            return results
-        
-        if self._joins:
-            results = []
-            for row in rows:
-                idx = 0
-                main_data = {}
-                for col in table_columns:
-                    main_data[col[0]] = row[idx]
-                    idx += 1
-                main_instance = self.__class__(self.db)
-                main_instance.set_current(main_data)
-                join_instances = []
-                for ctrl, alias in join_controllers:
-                    join_cols = ctrl.get_table_columns()
-                    join_data = {}
-                    for col in join_cols:
-                        join_data[col[0]] = row[idx]
-                        idx += 1
-                    join_instance = ctrl.__class__(ctrl.db)
-                    join_instance.set_current(join_data)
-                    join_instances.append(join_instance)
-                results.append([main_instance] + join_instances)
-            if do_update and results:
-                self.records = [r[0] for r in results]
-                self.set_current(results[0][0])
-            
-            self._query_where = None
-            self._query_columns = None
-            self._query_options = None
-            self._joins = []
-            
-            return results
-        else:
-            result = [dict(zip([col[0] for col in table_columns], row)) for row in rows]
-            if do_update and result:
-                self.records = result
-                self.set_current(result[0])
-            
-            return result
+        return self.__validate_fields()
 
     def __validate_fields(self) -> Dict[str, Any]:
         '''
