@@ -287,10 +287,17 @@ class SelectManager:
     
     def execute(self):
         """Executa a query SELECT e atualiza a instância automaticamente - Retorna o controller"""
+        print(f"DEBUG execute() - INICIANDO EXECUÇÃO")
+        print(f"DEBUG execute() - _executed: {self._executed}")
+        print(f"DEBUG execute() - table_name: {self._controller.table_name}")
+        print(f"DEBUG execute() - _where_conditions: {self._where_conditions}")
+        
         if self._executed:
+            print(f"DEBUG execute() - JÁ EXECUTADO, retornando controller")
             return self._controller
         
         self._executed = True
+        print(f"DEBUG execute() - Validando campos...")
         validate = self._controller.validate_fields()
         if not validate['valid']:
             raise Exception(validate['error'])
