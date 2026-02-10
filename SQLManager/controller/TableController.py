@@ -1431,9 +1431,8 @@ class TableController():
         Returns:
             bool: True se existir pelo menos um registro, False caso contrário.
         '''
-        wrapper = self.select().where(where).limit(1).do_update(False)
-        rows = wrapper.execute()
-        return len(rows) > 0
+        result = self.select().where(where).limit(1).do_update(False).execute()
+        return len(result.records) > 0
 
     def validate_fields(self) -> Dict[str, Any]:
         '''
