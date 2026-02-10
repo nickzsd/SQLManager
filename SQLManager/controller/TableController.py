@@ -92,19 +92,49 @@ class BinaryExpression:
 class AutoExecuteWrapper:
     '''Wrapper que delega métodos para SelectManager mas auto-executa quando não há mais encadeamento'''
     
+    _pending_executions = []  # Lista de wrappers pendentes de execução
+    
     def __init__(self, select_manager):
         self._select_manager = select_manager
         self._executed = False
         self._result_cache = None
+        self._finalized = False
+        
+        # Registra para execução automática no próximo ciclo
+        AutoExecuteWrapper._pending_executions.append(weakref.ref(self, self._cleanup_callback))
+    
+    @staticmethod
+    def _cleanup_callback(ref):
+        """Callback chamado quando o wrapper é garbage collected"""
+        pass
+    
+    @staticmethod
+    def _execute_pending():
+        """Executa todos os wrappers pendentes"""
+        while AutoExecuteWrapper._pending_executions:
+            ref = AutoExecuteWrapper._pending_executions.pop(0)
+            wrapper = ref()
+            if wrapper and not wrapper._executed:
+                try:
+                    wrapper._select_manager.execute()
+                    wrapper._executed = True
+                except:
+                    pass
     
     def __del__(self):
         """Auto-executa quando não há mais referência ao wrapper"""
-        if not self._executed and not self._select_manager._executed:
-            try:
-                self._select_manager.execute()
-                self._executed = True
-            except:
-                pass
+        self._finalize()
+    
+    def _finalize(self):
+        """Finaliza e executa se necessário"""
+        if not self._finalized:
+            self._finalized = True
+            if not self._executed and not self._select_manager._executed:
+                try:
+                    self._select_manager.execute()
+                    self._executed = True
+                except:
+                    pass
     
     def __getattr__(self, name):
         """Delega todos os métodos para o SelectManager"""
@@ -126,8 +156,9 @@ class AutoExecuteWrapper:
         return self._result_cache
     
     def execute(self):
-        """Executa explicitamente"""
-        return self._ensure_executed()
+        """Executa explicitamente e retorna o controller para acesso aos campos"""
+        self._ensure_executed()
+        return self._select_manager._controller
     
     def __len__(self):
         """Permite usar len() - auto-executa se necessário"""
@@ -144,6 +175,12 @@ class AutoExecuteWrapper:
     def __getitem__(self, index):
         """Permite acesso por índice - auto-executa se necessário"""
         return self._ensure_executed()[index]
+    
+    def __repr__(self):
+        """Força execução quando objeto é representado/inspecionado"""
+        if not self._finalized:
+            self._finalize()
+        return f"<SelectQuery executed={self._executed}>"
 
 class SelectManager:
     '''Gerencia operações SELECT com API fluente - Auto-executa quando a cadeia termina'''
