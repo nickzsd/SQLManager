@@ -232,11 +232,14 @@ class SelectManager:
 
     def where(self, condition: Union[FieldCondition, BinaryExpression]) -> 'SelectManager':
         '''Adiciona condições WHERE e permite encadeamento'''
+        print(f">>> WHERE chamado - condition: {condition}, tipo: {type(condition)}")
         self._where_conditions = condition
-        return self    
-
+        print(f">>> WHERE aplicado - _where_conditions: {self._where_conditions}")
+        return self
+    
     def columns(self, *cols: Union[str, EDTController, 'BaseEnumController']) -> 'SelectManager':
         '''Define as colunas a serem retornadas - Aceita campos EDT/Enum ou strings'''
+        print(f">>> COLUMNS chamado - cols: {cols}")
         extracted_cols = []
         for col in cols:
             if isinstance(col, (EDTController, BaseEnumController)):
@@ -244,8 +247,7 @@ class SelectManager:
             else:
                 extracted_cols.append(str(col))
         self._columns = extracted_cols
-        return self
-    
+        print(f">>> COLUMNS aplicado - _columns: {self._columns}")
     def join(self, other_table, join_type: str = 'INNER') -> 'JoinBuilder':
         '''Inicia um JOIN com outra tabela'''
         return JoinBuilder(self, other_table, join_type)
