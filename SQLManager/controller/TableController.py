@@ -246,6 +246,7 @@ class SelectManager:
                 extracted_cols.append(str(col))
         self._columns = extracted_cols
         return self
+    
     def join(self, other_table, join_type: str = 'INNER') -> 'JoinBuilder':
         '''Inicia um JOIN com outra tabela'''
         return JoinBuilder(self, other_table, join_type)
@@ -896,7 +897,10 @@ class UpdateManager:
             controller.db.ttscommit()
             
             recid_instance = controller._get_field_instance('RECID')
-            updated_record = controller.select().where(recid_instance == recid_instance.value).limit(1).do_update(False).execute()
+            controller.select().where(recid_instance == recid_instance.value).limit(1).do_update(False).execute()
+
+            updated_record = controller.records()[0] if controller.records() else None
+            
             if updated_record:
                 controller.set_current(updated_record[0])
             
