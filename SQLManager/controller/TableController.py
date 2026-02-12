@@ -848,7 +848,7 @@ class UpdateManager:
                 raise Exception("Atualização sem chave primaria, preencha o campo RECID")
             
             recid_instance = self._get_field_instance('RECID')
-            if not self.__check_exists(recid_instance == recid_instance.value):
+            if not self._check_exists(recid_instance == recid_instance.value):
                 raise Exception(f"Registro com RECID {recid_instance.value} não existe na tabela {self.table_name}")
             
             return func(self, *args, **kwargs)
@@ -1043,7 +1043,7 @@ class DeleteManager:
                 raise Exception("Exclusão sem chave primaria, preencha o campo RECID")
             
             recid_instance = self._get_field_instance('RECID')
-            if not self.__check_exists(recid_instance == recid_instance.value):
+            if not self._check_exists(recid_instance == recid_instance.value):
                 raise Exception(f"Registro com RECID {recid_instance.value} não existe na tabela {self.table_name}")
             
             return func(self, *args, **kwargs)
@@ -1425,7 +1425,7 @@ class TableController():
         '''        
         return len(self.records)
 
-    def __check_exists(self, where: Union[FieldCondition, BinaryExpression]) -> bool:
+    def _check_exists(self, where: Union[FieldCondition, BinaryExpression]) -> bool:
         '''
         MÉTODO INTERNO: Verifica se existem registros (usado por decorators).
         Args:
@@ -1447,7 +1447,7 @@ class TableController():
         Returns:
             bool: True se existir pelo menos um registro, False caso contrário.
         '''
-        return self.__check_exists(where)
+        return self._check_exists(where)
 
     def validate_fields(self) -> Dict[str, Any]:
         '''
