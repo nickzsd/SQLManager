@@ -902,7 +902,7 @@ class UpdateManager:
             updated_record = controller.records[0] if controller.records else None
             
             if updated_record:
-                controller.set_current(updated_record[0])
+                controller.set_current(updated_record)
             
             return True
         except Exception as error:
