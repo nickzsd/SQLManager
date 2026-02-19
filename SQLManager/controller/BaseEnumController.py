@@ -17,6 +17,12 @@ class BaseEnum_Utils:
 
     def get_map(self):
         return [{'value': member.value, 'label': member.label} for member in self._enum_class()]
+    
+    def get_keyByValue(self, value):
+        for member in self._enum_class():
+            if member.value == value:
+                return member.name
+        return None
 
 class CustomEnumMeta(_EnumMeta):
     ''' Metaclass customizada '''
@@ -178,4 +184,5 @@ class BaseEnumController(BaseEnum_Utils, OperationManager):
             if member.value == val:
                 self._value = member
                 return
-        raise ValueError(f'Valor "{val}" inválido')        
+        raise ValueError(f'Valor "{val}" inválido')    
+        

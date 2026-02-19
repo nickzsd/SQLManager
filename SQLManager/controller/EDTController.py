@@ -25,7 +25,7 @@ class EDT_Utils:
             if not self._regex_modes:
                 return False
             return bool(self._regex_modes.fullmatch(str(value)))
-
+        
 class REGEX (EDT_Utils):
     """Classe REGEX para validações de formatações"""
     _regex_modes: Optional[re.Pattern]
@@ -69,6 +69,7 @@ class REGEX (EDT_Utils):
             "password": r"^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,}$",
             "url": r"^(https?:\/\/)?([\w.-]+)\.([a-z]{2,})([\/\w.-]*)*\/?$",
         }
+        
         pattern = patterns.get(regex_id)
         return re.compile(pattern) if pattern else None    
 
@@ -224,4 +225,4 @@ class EDTController(EDT_Utils, OperationManager):
 
     def to_json(self) -> Any:
         return self._value
-                
+    

@@ -1,6 +1,5 @@
 # Setup para o Core como pacote instalável
 
-
 from setuptools import setup, find_packages
 from setuptools.command.install import install
 import os
@@ -13,9 +12,9 @@ class CustomInstallCommand(install):
 
 setup(
     name="SQLManager",
-    version="3.5.5",
+    version="3.5.6",
     description="Sistema para gerenciamento de banco de dados e validações",
-    author="Rojemac",
+    author="Avalon Tecnologia",
     author_email="nicolas.santos@avalontecnologia.com.br",
     url="https://github.com/nickzsd/SQLManager",
     packages=find_packages(include=["SQLManager", "SQLManager.*"]),
@@ -42,6 +41,9 @@ setup(
         "Programming Language :: Python :: 3.11",
     ],
     cmdclass={
-        'install': CustomInstallCommand,
+        'install': CustomInstallCommand,        
+        'force_reinstall': CustomInstallCommand,
     },
+    license="MIT",
+    license_file="LICENSE",
 )

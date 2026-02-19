@@ -3,6 +3,7 @@ from functools           import wraps
 import weakref
 import inspect
 import sys
+
 from concurrent.futures  import ThreadPoolExecutor, as_completed
 from threading           import Lock
 from ..connection        import database_connection as data, Transaction
@@ -350,16 +351,16 @@ class SelectManager:
         query = f"SELECT {distinct_keyword}{', '.join(select_columns)} FROM {self._controller.table_name} AS {main_alias}" + ''.join(join_clauses)
         values = []
         
-        if self._where_conditions:
+        if self._where_conditions or self.where_conditions is not None:
             where_sql, where_values = self._where_conditions.to_sql()
             query += f" WHERE {where_sql}"
             values.extend(where_values if isinstance(where_values, list) else [where_values])
         
-        if self._group_by:
+        if self._group_by or self._group_by is not None:
             group_clauses = [f"{main_alias}.{field}" for field in self._group_by]
             query += " GROUP BY " + ", ".join(group_clauses)
         
-        if self._having_conditions:
+        if self._having_conditions or self._having_conditions is not None:
             having_clauses = []
             for h in self._having_conditions:
                 operator = h.get('operator', '=')
@@ -367,7 +368,7 @@ class SelectManager:
                 values.append(h['value'])
             query += " HAVING " + " AND ".join(having_clauses)
         
-        if self._order_by:
+        if self._order_by or self._order_by is not None:
             query += f" ORDER BY {main_alias}.{self._order_by}"
             query += f" OFFSET {offset} ROWS FETCH NEXT {limit} ROWS ONLY"
         
@@ -384,7 +385,7 @@ class SelectManager:
         else:
             raise Exception(f"Objeto de conexão não possui método compatível (doQuery, execute ou executeCommand)")
         
-        if has_aggregates or self._group_by:
+        if has_aggregates or self._group_by or self._group_by is not None:
             results = self._process_aggregate_results(rows, columns, table_columns)
         elif self._joins:
             results = self._process_join_results(rows, table_columns, join_controllers)
